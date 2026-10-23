@@ -21,12 +21,12 @@ export default async function handler(req, res) {
     const mime = inlineImage?.mimeType;
     const base64 = inlineImage?.data;
     if (!['image/png','image/jpeg','image/webp'].includes(mime) ||
-        typeof base64 !== 'string' || base64.length > 2800000 ||
+        typeof base64 !== 'string' || base64.length > 4200000 ||
         !/^[a-zA-Z0-9+/]*={0,2}$/.test(base64)) {
-      return res.status(400).json({error:'올바른 이미지(2MB 이하)가 필요합니다.'});
+      return res.status(400).json({error:'올바른 이미지(3MB 이하)가 필요합니다.'});
     }
     const bytes = Buffer.from(base64, 'base64');
-    if (!bytes.length || bytes.length > 2*1024*1024 ||
+    if (!bytes.length || bytes.length > 3*1024*1024 ||
         !(mime==='image/png' && bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ||
           mime==='image/jpeg' && bytes[0]===255 && bytes[1]===216 && bytes[2]===255 ||
           mime==='image/webp' && bytes.toString('ascii',0,4)==='RIFF' && bytes.toString('ascii',8,12)==='WEBP')) {
@@ -48,13 +48,13 @@ export default async function handler(req, res) {
         credentials: {accessKeyId: AWS_ACCESS_KEY_ID, secretAccessKey: AWS_SECRET_ACCESS_KEY}
       });
       const result = await s3.send(new GetObjectCommand({Bucket: STORAGE_BUCKET, Key: imageKey}));
-      if (result.ContentLength && result.ContentLength > 2*1024*1024)
-        return res.status(413).json({error:'이미지는 2MB 이하만 분석합니다.'});
+      if (result.ContentLength && result.ContentLength > 3*1024*1024)
+        return res.status(413).json({error:'이미지는 3MB 이하만 분석합니다.'});
       const chunks = [];
       let size = 0;
       for await (const chunk of result.Body) {
         size += chunk.length;
-        if (size > 2*1024*1024) return res.status(413).json({error:'이미지 크기 초과'});
+        if (size > 3*1024*1024) return res.status(413).json({error:'이미지 크기 초과'});
         chunks.push(chunk);
       }
       const mimeType = imageKey.endsWith('.png')?'image/png':imageKey.endsWith('.jpg')?'image/jpeg':'image/webp';

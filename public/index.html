@@ -1788,15 +1788,10 @@
                         attach.onclick=async()=>{
                             attach.disabled=true;
                             try {
-                                const response=await fetch('/api/storage-images?key='+encodeURIComponent(item.key),{credentials:'same-origin'});
+                                const response=await fetch('/api/storage-images?mode=data&key='+encodeURIComponent(item.key),{credentials:'same-origin'});
                                 const result=await response.json();
-                                if(!response.ok)throw Error(result.error||'URL 생성 실패');
-                                const imageResponse=await fetch(result.url);
-                                if(!imageResponse.ok)throw Error('이미지 다운로드 실패');
-                                const blob=await imageResponse.blob();
-                                if(blob.size>3*1024*1024)throw Error('3MB 초과 이미지는 첨부할 수 없습니다.');
-                                const mime=item.key.endsWith('.png')?'image/png':item.key.endsWith('.jpg')?'image/jpeg':'image/webp';
-                                setImage({mimeType:mime,data:await base64Of(new File([blob],'storage-image',{type:mime}))});
+                                if(!response.ok)throw Error(result.error||'이미지 불러오기 실패');
+                                setImage({mimeType:result.mimeType,data:result.data});
                                 imageStatus.textContent='✅ 보관함 이미지 첨부 준비 완료';
                                 panel.remove();
                             }catch(e){imageStatus.textContent='❌ '+e.message;}

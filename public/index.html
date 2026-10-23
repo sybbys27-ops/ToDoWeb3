@@ -1631,11 +1631,13 @@
 
             initMemoTool();
             websiteTool = initWebsiteTool();
+            let uploadedImageKey = null;
             const imageInput = document.getElementById('gemini-image-file');
             const imageStatus = document.getElementById('gemini-image-status');
             const uploadImageBtn = document.getElementById('gemini-upload-image');
             document.getElementById('gemini-pick-image').addEventListener('click', () => imageInput.click());
             imageInput.addEventListener('change', () => {
+                uploadedImageKey = null;
                 const file = imageInput.files?.[0];
                 uploadImageBtn.disabled = !file || file.size > 2 * 1024 * 1024 ||
                     !['image/png','image/jpeg','image/webp'].includes(file.type);
@@ -1663,7 +1665,8 @@
                     });
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.error || '업로드 오류');
-                    imageStatus.textContent = '✅ 저장 완료: ' + result.key;
+                    uploadedImageKey = result.key;
+                    imageStatus.textContent = '✅ 이미지 첨부 준비 완료';
                 } catch(e) {
                     imageStatus.textContent = '❌ '+ e.message;
                 } finally { uploadImageBtn.disabled = false; }
@@ -1677,7 +1680,7 @@
                 if (!question) {geminiStatus.textContent='질문을 입력해 주세요.'; return;}
                 geminiSend.disabled=true;geminiStatus.textContent='답변 생성 중...';
                 try {
-                    const response=await fetch('/api/gemini',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({question})});
+                    const response=await fetch('/api/gemini',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({question, ...(uploadedImageKey ? {imageKey:uploadedImageKey} : {})})});
                     const result=await response.json();
                     if(!response.ok) throw new Error(result.error || 'API 오류');
                     geminiAnswer.textContent=result.answer;geminiStatus.textContent='완료 · '+(result.model || 'Gemini');

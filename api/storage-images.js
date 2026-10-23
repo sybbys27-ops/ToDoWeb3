@@ -15,6 +15,14 @@ export default async function handler(req,res) {
   const key=req.query.key;
   if(key!==undefined) {
    if(typeof key!=='string'||!/^gemini-input\/\d{4}-\d{2}-\d{2}\/[a-f0-9-]{36}\.(png|jpg|webp)$/.test(key)) return res.status(400).json({error:'Invalid image key'});
+   if(req.query.mode==='data') {
+    const obj=await s3.send(new GetObjectCommand({Bucket:bucket,Key:key}));
+    if(obj.ContentLength>3*1024*1024)return res.status(413).json({error:'3MB를 초과한 이미지입니다.'});
+    const chunks=[];let size=0;
+    for await(const chunk of obj.Body) {size+=chunk.length;if(size>3*1024*1024)return res.status(413).json({error:'3MB를 초과한 이미지입니다.'});chunks.push(chunk);}
+    const mimeType=key.endsWith('.png')?'image/png':key.endsWith('.jpg')?'image/jpeg':'image/webp';
+    return res.status(200).json({mimeType,data:Buffer.concat(chunks).toString('base64')});
+   }
    const url=await getSignedUrl(s3,new GetObjectCommand({Bucket:bucket,Key:key}),{expiresIn:300});
    return res.status(200).json({url,expiresIn:300});
   }

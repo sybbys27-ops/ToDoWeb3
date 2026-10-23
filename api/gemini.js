@@ -8,16 +8,14 @@ export default async function handler(req, res) {
   if (!isAuthenticated(req)) return res.status(401).json({error: 'Unauthorized'});
   if (req.method !== 'POST') return res.status(405).json({error: 'Method not allowed'});
   const question = req.body?.question;
-  if (typeof question !== 'string' || !question.trim() || question.length > 2000)
-    return res.status(400).json({error: '질문은 1~2000자로 입력하세요.'});
+  if (typeof question !== 'string' || !question.trim() || question.length > 4000)
+    return res.status(400).json({error: '질문은 1~4000자로 입력하세요.'});
 
   const key = process.env.GEMINI_API_KEY?.trim();
   if (!key) return res.status(503).json({error: 'GEMINI_API_KEY 환경변수가 필요합니다. Preview를 재배포해 주세요.'});
 
   const requestBody = JSON.stringify({
-    systemInstruction: {parts: [{text: '한국어로 정확하고 간결하게 답하세요. 기본 2~4문장으로 답합니다.'}]},
-    contents: [{role: 'user', parts: [{text: question.trim()}]}],
-    generationConfig: {maxOutputTokens: 768, temperature: 0.3}
+    contents: [{role: 'user', parts: [{text: '너는 유용한 단발성 질의응답 도우미야. 다음 질문에 핵심만 간단히 답변해줘:\\n\\n' + question.trim()}]}]
   });
 
   for (let i = 0; i < MODELS.length; i++) {

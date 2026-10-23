@@ -738,7 +738,7 @@
             </div>
         </div>
 
-        <div id="gemini-view" class="gemini-view"><textarea id="gemini-question" maxlength="4000" placeholder="Gemini에게 질문하세요..."></textarea><div class="gemini-toolbar"><button type="button" id="gemini-send">질문</button><span id="gemini-status" role="status"></span></div><div id="gemini-answer" aria-live="polite">여기에 답변이 표시됩니다.</div></div><!-- 웹 사이트 등록 영역 (4번 탭) -->
+        <div id="gemini-view" class="gemini-view"><textarea id="gemini-question" maxlength="4000" placeholder="Gemini에게 질문하세요..."></textarea><div class="gemini-toolbar"><button type="button" id="gemini-send">질문</button><span id="gemini-status" role="status"></span></div><div class="gemini-toolbar"><input type="file" id="gemini-image-file" accept="image/png,image/jpeg,image/webp" style="display:none"><button type="button" id="gemini-pick-image">🖼 이미지 선택</button><button type="button" id="gemini-upload-image" disabled>Storage 저장</button></div><span id="gemini-image-status" role="status" style="font-size:11px;color:#475569"></span><div id="gemini-answer" aria-live="polite">여기에 답변이 표시됩니다.</div></div><!-- 웹 사이트 등록 영역 (4번 탭) -->
         <div id="website-tool-view" style="display: none;">
             <div class="bm-top-tip">≡ 드래그로 순서 변경</div>
 
@@ -1631,6 +1631,43 @@
 
             initMemoTool();
             websiteTool = initWebsiteTool();
+            const imageInput = document.getElementById('gemini-image-file');
+            const imageStatus = document.getElementById('gemini-image-status');
+            const uploadImageBtn = document.getElementById('gemini-upload-image');
+            document.getElementById('gemini-pick-image').addEventListener('click', () => imageInput.click());
+            imageInput.addEventListener('change', () => {
+                const file = imageInput.files?.[0];
+                uploadImageBtn.disabled = !file || file.size > 2 * 1024 * 1024 ||
+                    !['image/png','image/jpeg','image/webp'].includes(file.type);
+                imageStatus.textContent = file
+                    ? file.name + ' (' + Math.ceil(file.size/1024) + ' KB)' +
+                        (uploadImageBtn.disabled ? ' — 지원 형식/2MB 제한 확인' : ' — 업로드 준비')
+                    : '';
+            });
+            uploadImageBtn.addEventListener('click', async () => {
+                const file = imageInput.files?.[0];
+                if (!file || uploadImageBtn.disabled) return;
+                uploadImageBtn.disabled = true;
+                imageStatus.textContent = 'Neon Storage 저장 중...';
+                try {
+                    const base64 = await new Promise((resolve,reject) => {
+                        const reader = new FileReader();
+                        reader.onerror = () => reject(new Error('파일 읽기 실패'));
+                        reader.onload = () => resolve(String(reader.result).split(',')[1]);
+                        reader.readAsDataURL(file);
+                    });
+                    const response = await fetch('/api/upload-image', {
+                        method:'POST', credentials:'same-origin',
+                        headers:{'Content-Type':'application/json'},
+                        body:JSON.stringify({mimeType:file.type,image:base64})
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.error || '업로드 오류');
+                    imageStatus.textContent = '✅ 저장 완료: ' + result.key;
+                } catch(e) {
+                    imageStatus.textContent = '❌ '+ e.message;
+                } finally { uploadImageBtn.disabled = false; }
+            });
             const geminiQuestion = document.getElementById('gemini-question');
             const geminiSend = document.getElementById('gemini-send');
             const geminiStatus = document.getElementById('gemini-status');

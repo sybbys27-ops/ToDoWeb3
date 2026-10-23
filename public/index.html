@@ -622,7 +622,7 @@
             vertical-align: middle;
         }
         .delete-btn:hover { transform: scale(1.2); }
-    .tab-btn[data-tab="5"]{background:#e2e8f0}.gemini-view{display:none;flex-direction:column;gap:8px}#gemini-question{width:100%;box-sizing:border-box;height:75px;padding:8px;resize:vertical}#gemini-answer{min-height:140px;padding:10px;background:white;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #ccc;font-size:13px}.gemini-toolbar{display:flex;align-items:center;gap:8px}#gemini-status{font-size:12px}</style>
+    .tab-btn[data-tab="5"]{background:#e2e8f0}.gemini-view{display:none;flex-direction:column;gap:8px}#gemini-question{width:100%;box-sizing:border-box;height:75px;padding:8px;resize:vertical}#gemini-answer{min-height:140px;padding:10px;background:white;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #ccc;font-size:13px}.gemini-toolbar{display:flex;align-items:center;gap:8px}.gemini-toolbar:has(#gemini-pick-image){gap:4px;flex-wrap:nowrap;min-width:0}.gemini-toolbar:has(#gemini-pick-image)>button{font-size:11px;white-space:nowrap;padding:4px 3px;min-width:0;flex:1 1 0;line-height:1.2}#gemini-status{font-size:12px}</style>
 </head>
 <body>
 
@@ -738,7 +738,7 @@
             </div>
         </div>
 
-        <div id="gemini-view" class="gemini-view"><textarea id="gemini-question" maxlength="4000" placeholder="Gemini에게 질문하세요..."></textarea><div class="gemini-toolbar"><button type="button" id="gemini-send">질문</button><span id="gemini-status" role="status"></span></div><div id="gemini-answer" aria-live="polite">여기에 답변이 표시됩니다.</div></div><!-- 웹 사이트 등록 영역 (4번 탭) -->
+        <div id="gemini-view" class="gemini-view"><textarea id="gemini-question" maxlength="4000" placeholder="Gemini에게 질문하세요..."></textarea><div class="gemini-toolbar"><button type="button" id="gemini-send">질문</button><span id="gemini-status" role="status"></span></div><div class="gemini-toolbar"><input type="file" id="gemini-image-file" accept="image/png,image/jpeg,image/webp" style="display:none"><button type="button" id="gemini-pick-image">🖼 이미지 선택</button><button type="button" id="gemini-capture">Capture 사용</button><button type="button" id="gemini-upload-image" disabled>Storage 저장</button><button type="button" id="gemini-storage-list">Storage 목록</button></div><span id="gemini-image-status" role="status" style="font-size:11px;color:#475569"></span><div id="gemini-answer" aria-live="polite">여기에 답변이 표시됩니다.</div></div><!-- 웹 사이트 등록 영역 (4번 탭) -->
         <div id="website-tool-view" style="display: none;">
             <div class="bm-top-tip">≡ 드래그로 순서 변경</div>
 
@@ -1631,6 +1631,179 @@
 
             initMemoTool();
             websiteTool = initWebsiteTool();
+            let selectedImage = null;
+            const imageInput = document.getElementById('gemini-image-file');
+            const imageStatus = document.getElementById('gemini-image-status');
+            const uploadImageBtn = document.getElementById('gemini-upload-image');
+            function setImage(image) {
+                selectedImage = image;
+                uploadImageBtn.disabled = !image;
+                imageStatus.textContent = image ? '✅ 이미지 첨부 준비 완료 · Storage 미저장' : '';
+            }
+            async function base64Of(file) {
+                return new Promise((resolve,reject) => {
+                    const reader = new FileReader();
+                    reader.onerror = () => reject(new Error('이미지를 읽을 수 없습니다.'));
+                    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+                    reader.readAsDataURL(file);
+                });
+            }
+            document.getElementById('gemini-pick-image').addEventListener('click', () => imageInput.click());
+            imageInput.addEventListener('change', async () => {
+                const file = imageInput.files?.[0];
+                if (!file) return;
+                if (file.size > 3*1024*1024 || !['image/png','image/jpeg','image/webp'].includes(file.type)) {
+                    setImage(null); imageStatus.textContent = '❌ PNG/JPG/WEBP 3MB 이하만 지원'; return;
+                }
+                try {setImage({mimeType:file.type,data:await base64Of(file)});}
+                catch(e) {setImage(null); imageStatus.textContent=e.message;}
+            });
+            document.getElementById('gemini-capture').addEventListener('click', async () => {
+                if (!navigator.mediaDevices?.getDisplayMedia) {
+                    imageStatus.textContent = '❌ 화면 공유를 지원하지 않는 브라우저입니다.'; return;
+                }
+                let stream;
+                try {
+                    // Browser mandates a user-mediated screen/window sharing dialog.
+                    stream = await navigator.mediaDevices.getDisplayMedia({video:true,audio:false});
+                    const video = document.createElement('video');
+                    video.muted = true;
+                    video.srcObject = stream;
+                    await video.play();
+                    if (!video.videoWidth || !video.videoHeight) throw new Error('화면 프레임을 가져올 수 없습니다.');
+                    const frame = document.createElement('canvas');
+                    frame.width = video.videoWidth; frame.height = video.videoHeight;
+                    frame.getContext('2d').drawImage(video,0,0);
+                    stream.getTracks().forEach(t=>t.stop()); stream=null;
+                    const overlay = document.createElement('div');
+                    overlay.style.cssText='position:fixed;inset:0;z-index:100000;background:#161616;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:12px;box-sizing:border-box;';
+                    const caption = document.createElement('div');
+                    caption.textContent='마우스로 영역을 드래그하면 자동 첨부됩니다. 다시 드래그해 재선택 가능';
+                    caption.style.cssText='font-size:12px;text-align:center';
+                    const canvas = document.createElement('canvas');
+                    const ratio = Math.min((window.innerWidth-24)/frame.width,(window.innerHeight-110)/frame.height,1);
+                    canvas.width=Math.max(1,Math.round(frame.width*ratio));
+                    canvas.height=Math.max(1,Math.round(frame.height*ratio));
+                    canvas.style.cssText='max-width:100%;border:1px solid white;cursor:crosshair;touch-action:none;';
+                    const ctx=canvas.getContext('2d');
+                    ctx.drawImage(frame,0,0,canvas.width,canvas.height);
+                    const controls=document.createElement('div');
+                    const close=document.createElement('button');
+                    close.textContent='닫기';close.type='button';
+                    close.onclick=()=>overlay.remove();
+                    controls.appendChild(close);
+                    overlay.append(caption,canvas,controls);
+                    document.body.appendChild(overlay);
+                    let startPoint=null,dragged=false;
+                    function coords(event) {
+                        const b=canvas.getBoundingClientRect();
+                        return {x:Math.max(0,Math.min(frame.width,(event.clientX-b.left)*frame.width/b.width)),
+                                y:Math.max(0,Math.min(frame.height,(event.clientY-b.top)*frame.height/b.height))};
+                    }
+                    function drawRect(a,b) {
+                        ctx.drawImage(frame,0,0,canvas.width,canvas.height);
+                        const sx=canvas.width/frame.width,sy=canvas.height/frame.height;
+                        ctx.strokeStyle='#ffdf45';ctx.lineWidth=2;
+                        ctx.strokeRect(a.x*sx,a.y*sy,(b.x-a.x)*sx,(b.y-a.y)*sy);
+                    }
+                    canvas.addEventListener('pointerdown',e=>{
+                        startPoint=coords(e);dragged=false;canvas.setPointerCapture(e.pointerId);
+                    });
+                    canvas.addEventListener('pointermove',e=>{
+                        if (!startPoint) return;
+                        dragged=true;drawRect(startPoint,coords(e));
+                    });
+                    canvas.addEventListener('pointerup',e=>{
+                        if (!startPoint) return;
+                        const finish=coords(e), a=startPoint; startPoint=null;
+                        if (!dragged) return;
+                        const x=Math.round(Math.min(a.x,finish.x)),y=Math.round(Math.min(a.y,finish.y));
+                        const w=Math.round(Math.abs(a.x-finish.x)),h=Math.round(Math.abs(a.y-finish.y));
+                        if (w<10||h<10) {caption.textContent='영역을 조금 더 크게 지정해 주세요.';return;}
+                        const output=document.createElement('canvas');
+                        const scale=Math.min(1,1600/Math.max(w,h));
+                        output.width=Math.max(1,Math.round(w*scale));
+                        output.height=Math.max(1,Math.round(h*scale));
+                        output.getContext('2d').drawImage(frame,x,y,w,h,0,0,output.width,output.height);
+                        let quality=.85, encoded='';
+                        do {encoded=output.toDataURL('image/jpeg',quality).split(',')[1];quality-=.12;}
+                        while(encoded.length>2750000 && quality>.3);
+                        if(encoded.length>2750000) {caption.textContent='캡처 이미지가 2MB를 초과합니다. 작은 영역을 선택해 주세요.';return;}
+                        setImage({mimeType:'image/jpeg',data:encoded});
+                        overlay.remove();
+                    });
+                } catch(e) {
+                    imageStatus.textContent=e.name==='NotAllowedError'?'화면 공유가 취소되었습니다.':'❌ 캡처 오류: '+e.message;
+                } finally {if(stream)stream.getTracks().forEach(t=>t.stop());}
+            });
+            uploadImageBtn.addEventListener('click', async () => {
+                if (!selectedImage) return;
+                uploadImageBtn.disabled=true;
+                imageStatus.textContent='Neon Storage 저장 중...';
+                try {
+                    const response=await fetch('/api/upload-image',{
+                        method:'POST',credentials:'same-origin',
+                        headers:{'Content-Type':'application/json'},
+                        body:JSON.stringify({mimeType:selectedImage.mimeType,image:selectedImage.data})
+                    });
+                    const result=await response.json();
+                    if(!response.ok)throw new Error(result.error || '업로드 오류');
+                    imageStatus.textContent='✅ Storage 저장 완료 · Gemini 첨부 준비 완료';
+                } catch(e) {imageStatus.textContent='❌ '+e.message;}
+                finally {uploadImageBtn.disabled=false;}
+            });
+            document.getElementById('gemini-storage-list').addEventListener('click', async () => {
+                const old = document.getElementById('gemini-storage-panel');
+                if (old) { old.remove(); return; }
+                const panel = document.createElement('div');
+                panel.id='gemini-storage-panel';
+                panel.style.cssText='background:#fff;border:1px solid #999;max-height:220px;overflow:auto;padding:5px;font-size:12px;';
+                panel.textContent='Neon 이미지 목록 불러오는 중...';
+                document.getElementById('gemini-answer').before(panel);
+                try {
+                    const response=await fetch('/api/storage-images',{credentials:'same-origin',cache:'no-store'});
+                    const result=await response.json();
+                    if(!response.ok) throw Error(result.error||'목록 오류');
+                    panel.replaceChildren();
+                    if(!result.items?.length) {panel.textContent='저장된 이미지가 없습니다.';return;}
+                    for(const item of result.items) {
+                        const row=document.createElement('div');
+                        row.style.cssText='display:flex;gap:4px;align-items:center;border-bottom:1px solid #ddd;padding:4px 0;';
+                        const name=document.createElement('span');
+                        name.style.cssText='flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                        name.title=item.key;
+                        name.textContent=item.key.split('/').pop()+' ('+Math.round(item.size/1024)+'KB)';
+                        const view=document.createElement('button');
+                        view.textContent='열기';
+                        view.onclick=async()=>{
+                            try {
+                                const response=await fetch('/api/storage-images?key='+encodeURIComponent(item.key),{credentials:'same-origin'});
+                                const result=await response.json();
+                                if(!response.ok)throw Error(result.error||'URL 생성 실패');
+                                window.open(result.url,'_blank','noopener,noreferrer');
+                            }catch(e){imageStatus.textContent='❌ '+e.message;}
+                        };
+                        const attach=document.createElement('button');
+                        attach.textContent='첨부';
+                        attach.onclick=async()=>{
+                            attach.disabled=true;
+                            try {
+                                const response=await fetch('/api/storage-images?mode=data&key='+encodeURIComponent(item.key),{credentials:'same-origin'});
+                                const result=await response.json();
+                                if(!response.ok)throw Error(result.error||'이미지 불러오기 실패');
+                                setImage({mimeType:result.mimeType,data:result.data});
+                                imageStatus.textContent='✅ 보관함 이미지 첨부 준비 완료';
+                                panel.remove();
+                            }catch(e){imageStatus.textContent='❌ '+e.message;}
+                            finally {attach.disabled=false;}
+                        };
+                        row.append(name,view,attach);panel.appendChild(row);
+                    }
+                    if(result.truncated) {
+                        const note=document.createElement('p');note.textContent='최신 100개 이외의 파일은 Neon 콘솔에서 확인하세요.';panel.appendChild(note);
+                    }
+                }catch(e){panel.textContent='❌ '+e.message;}
+            });
             const geminiQuestion = document.getElementById('gemini-question');
             const geminiSend = document.getElementById('gemini-send');
             const geminiStatus = document.getElementById('gemini-status');
@@ -1640,7 +1813,7 @@
                 if (!question) {geminiStatus.textContent='질문을 입력해 주세요.'; return;}
                 geminiSend.disabled=true;geminiStatus.textContent='답변 생성 중...';
                 try {
-                    const response=await fetch('/api/gemini',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({question})});
+                    const response=await fetch('/api/gemini',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({question, ...(selectedImage ? {inlineImage:selectedImage} : {})})});
                     const result=await response.json();
                     if(!response.ok) throw new Error(result.error || 'API 오류');
                     geminiAnswer.textContent=result.answer;geminiStatus.textContent='완료 · '+(result.model || 'Gemini');

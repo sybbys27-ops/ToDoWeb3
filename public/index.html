@@ -738,7 +738,7 @@
             </div>
         </div>
 
-        <div id="gemini-view" class="gemini-view"><textarea id="gemini-question" maxlength="4000" placeholder="Gemini에게 질문하세요..."></textarea><div class="gemini-toolbar"><button type="button" id="gemini-send">질문</button><span id="gemini-status" role="status"></span></div><div class="gemini-toolbar"><input type="file" id="gemini-image-file" accept="image/png,image/jpeg,image/webp" style="display:none"><button type="button" id="gemini-pick-image">🖼 이미지 선택</button><button type="button" id="gemini-capture">Capture 사용</button><button type="button" id="gemini-upload-image" disabled>Storage 저장</button></div><span id="gemini-image-status" role="status" style="font-size:11px;color:#475569"></span><div id="gemini-answer" aria-live="polite">여기에 답변이 표시됩니다.</div></div><!-- 웹 사이트 등록 영역 (4번 탭) -->
+        <div id="gemini-view" class="gemini-view"><textarea id="gemini-question" maxlength="4000" placeholder="Gemini에게 질문하세요..."></textarea><div class="gemini-toolbar"><button type="button" id="gemini-send">질문</button><span id="gemini-status" role="status"></span></div><div class="gemini-toolbar"><input type="file" id="gemini-image-file" accept="image/png,image/jpeg,image/webp" style="display:none"><button type="button" id="gemini-pick-image">🖼 이미지 선택</button><button type="button" id="gemini-capture">Capture 사용</button><button type="button" id="gemini-upload-image" disabled>Storage 저장</button><button type="button" id="gemini-storage-list">Storage 목록</button></div><span id="gemini-image-status" role="status" style="font-size:11px;color:#475569"></span><div id="gemini-answer" aria-live="polite">여기에 답변이 표시됩니다.</div></div><!-- 웹 사이트 등록 영역 (4번 탭) -->
         <div id="website-tool-view" style="display: none;">
             <div class="bm-top-tip">≡ 드래그로 순서 변경</div>
 
@@ -1652,8 +1652,8 @@
             imageInput.addEventListener('change', async () => {
                 const file = imageInput.files?.[0];
                 if (!file) return;
-                if (file.size > 2*1024*1024 || !['image/png','image/jpeg','image/webp'].includes(file.type)) {
-                    setImage(null); imageStatus.textContent = '❌ PNG/JPG/WEBP 2MB 이하만 지원'; return;
+                if (file.size > 3*1024*1024 || !['image/png','image/jpeg','image/webp'].includes(file.type)) {
+                    setImage(null); imageStatus.textContent = '❌ PNG/JPG/WEBP 3MB 이하만 지원'; return;
                 }
                 try {setImage({mimeType:file.type,data:await base64Of(file)});}
                 catch(e) {setImage(null); imageStatus.textContent=e.message;}
@@ -1751,6 +1751,63 @@
                     imageStatus.textContent='✅ Storage 저장 완료 · Gemini 첨부 준비 완료';
                 } catch(e) {imageStatus.textContent='❌ '+e.message;}
                 finally {uploadImageBtn.disabled=false;}
+            });
+            document.getElementById('gemini-storage-list').addEventListener('click', async () => {
+                const old = document.getElementById('gemini-storage-panel');
+                if (old) { old.remove(); return; }
+                const panel = document.createElement('div');
+                panel.id='gemini-storage-panel';
+                panel.style.cssText='background:#fff;border:1px solid #999;max-height:220px;overflow:auto;padding:5px;font-size:12px;';
+                panel.textContent='Neon 이미지 목록 불러오는 중...';
+                document.getElementById('gemini-answer').before(panel);
+                try {
+                    const response=await fetch('/api/storage-images',{credentials:'same-origin',cache:'no-store'});
+                    const result=await response.json();
+                    if(!response.ok) throw Error(result.error||'목록 오류');
+                    panel.replaceChildren();
+                    if(!result.items?.length) {panel.textContent='저장된 이미지가 없습니다.';return;}
+                    for(const item of result.items) {
+                        const row=document.createElement('div');
+                        row.style.cssText='display:flex;gap:4px;align-items:center;border-bottom:1px solid #ddd;padding:4px 0;';
+                        const name=document.createElement('span');
+                        name.style.cssText='flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                        name.title=item.key;
+                        name.textContent=item.key.split('/').pop()+' ('+Math.round(item.size/1024)+'KB)';
+                        const view=document.createElement('button');
+                        view.textContent='열기';
+                        view.onclick=async()=>{
+                            try {
+                                const response=await fetch('/api/storage-images?key='+encodeURIComponent(item.key),{credentials:'same-origin'});
+                                const result=await response.json();
+                                if(!response.ok)throw Error(result.error||'URL 생성 실패');
+                                window.open(result.url,'_blank','noopener,noreferrer');
+                            }catch(e){imageStatus.textContent='❌ '+e.message;}
+                        };
+                        const attach=document.createElement('button');
+                        attach.textContent='첨부';
+                        attach.onclick=async()=>{
+                            attach.disabled=true;
+                            try {
+                                const response=await fetch('/api/storage-images?key='+encodeURIComponent(item.key),{credentials:'same-origin'});
+                                const result=await response.json();
+                                if(!response.ok)throw Error(result.error||'URL 생성 실패');
+                                const imageResponse=await fetch(result.url);
+                                if(!imageResponse.ok)throw Error('이미지 다운로드 실패');
+                                const blob=await imageResponse.blob();
+                                if(blob.size>3*1024*1024)throw Error('3MB 초과 이미지는 첨부할 수 없습니다.');
+                                const mime=item.key.endsWith('.png')?'image/png':item.key.endsWith('.jpg')?'image/jpeg':'image/webp';
+                                setImage({mimeType:mime,data:await base64Of(new File([blob],'storage-image',{type:mime}))});
+                                imageStatus.textContent='✅ 보관함 이미지 첨부 준비 완료';
+                                panel.remove();
+                            }catch(e){imageStatus.textContent='❌ '+e.message;}
+                            finally {attach.disabled=false;}
+                        };
+                        row.append(name,view,attach);panel.appendChild(row);
+                    }
+                    if(result.truncated) {
+                        const note=document.createElement('p');note.textContent='최신 100개 이외의 파일은 Neon 콘솔에서 확인하세요.';panel.appendChild(note);
+                    }
+                }catch(e){panel.textContent='❌ '+e.message;}
             });
             const geminiQuestion = document.getElementById('gemini-question');
             const geminiSend = document.getElementById('gemini-send');

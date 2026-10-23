@@ -1017,115 +1017,80 @@
                 window.open('https://papago.naver.com/', 'PapagoPopup', features);
             });
 
-            exportBtn.addEventListener('click', async () => {
-                saveToStorage(); // 내보내기 전 1번 탭 상태 확실하게 동기화
+            // '가져오기' 버튼은 향후 기능을 위해 남기되 현재 클릭 동작은 제거.
+            importBtn.title = '추후 기능 예정';
+            importBtn.addEventListener('click', () => {});
+            // 숨겨진 JSON 파일 입력은 더 이상 호출하지 않음.
 
-                // 1~4번 탭 전체 데이터를 하나의 JSON으로 통합 저장
-                const fullBackup = {
-                    version: 3,
-                    tab1_todo: appData,                                                          // 1번: 할 일 목록
-                    tab2_memo: sanitizeMemoHTML(localStorage.getItem('todoweb3_memo') || ''),      // 2번: 텍스트 메모 (HTML)
-                    tab4_bookmarks: websiteTool ? websiteTool.getBookmarks() : []                 // 4번: 웹 사이트 등록
-                };
-                const rawData = JSON.stringify(fullBackup, null, 2); 
-                
-                try {
-                    if ('showSaveFilePicker' in window) {
-                        if (!fileHandle) {
-                            fileHandle = await window.showSaveFilePicker({
-                                suggestedName: `${STORAGE_KEY}.json`,
-                                types: [{ description: 'JSON 데이터', accept: {'application/json': ['.json']} }]
-                            });
-                        }
-                        
-                        const writable = await fileHandle.createWritable();
-                        await writable.write(rawData);
-                        await writable.close();
+            let dbRevision = null;
+            let dbLoaded = false;
+            let dbSaving = false;
 
-                        const originalText = exportBtn.innerHTML;
-                        exportBtn.innerHTML = '✅ 저장됨!';
-                        exportBtn.style.backgroundColor = '#edfaf1';
-                        setTimeout(() => {
-                            exportBtn.innerHTML = originalText;
-                            exportBtn.style.backgroundColor = '#fff';
-                        }, 1500);
-
-                    } else {
-                        const blob = new Blob([rawData], { type: 'application/json' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `${STORAGE_KEY}.json`; 
-                        a.click();
-                        URL.revokeObjectURL(url);
-                    }
-                } catch (err) {
-                    console.log("저장 취소됨 또는 오류 발생");
+            async function loadFromNeonOnce() {
+                const response = await fetch('/api/state', {credentials: 'same-origin', cache: 'no-store'});
+                if (!response.ok) throw new Error('DB 불러오기 실패: HTTP ' + response.status);
+                const payload = await response.json();
+                const state = payload.data;
+                if (!state || !state.tab1_todo || !Array.isArray(state.tab1_todo['1']) ||
+                    typeof state.tab2_memo !== 'string' || !Array.isArray(state.tab4_bookmarks)) {
+                    throw new Error('DB 데이터 형식이 올바르지 않습니다.');
                 }
-            });
+                const safeBookmarks = websiteTool.prepareBookmarks(state.tab4_bookmarks);
+                if (!safeBookmarks) throw new Error('DB 북마크 형식이 올바르지 않습니다.');
+                // 서버 데이터가 기준. 초기 로컬 데이터는 서버에 자동 업로드하지 않음.
+                appData = {'1': state.tab1_todo['1']};
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+                const safeMemo = sanitizeMemoHTML(state.tab2_memo);
+                document.getElementById('memo-editor').innerHTML = safeMemo;
+                localStorage.setItem('todoweb3_memo', safeMemo);
+                websiteTool.replaceBookmarks(safeBookmarks);
+                renderCurrentTab();
+                dbRevision = payload.updated_at;
+                dbLoaded = true;
+            }
+            window.todoWeb3LoadCloud = loadFromNeonOnce;
 
-            importBtn.addEventListener('click', () => fileInput.click());
-            fileInput.addEventListener('change', (event) => {
-                const file = event.target.files[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    try {
-                        const importedData = JSON.parse(e.target.result);
-
-                        // v3 통합 백업 파일인지 판별 (tab1_todo 키 존재 여부)
-                        if (importedData && importedData.version >= 3 && importedData.tab1_todo && importedData.tab1_todo['1'] && Array.isArray(importedData.tab1_todo['1'])) {
-                            const hasMemo = Object.prototype.hasOwnProperty.call(importedData, 'tab2_memo');
-                            const hasBookmarks = Object.prototype.hasOwnProperty.call(importedData, 'tab4_bookmarks');
-                            if (hasMemo && typeof importedData.tab2_memo !== 'string') {
-                                alert('메모 백업 형식이 올바르지 않습니다.');
-                                return;
-                            }
-                            const safeBookmarks = hasBookmarks && websiteTool
-                                ? websiteTool.prepareBookmarks(importedData.tab4_bookmarks)
-                                : null;
-                            if (hasBookmarks && !safeBookmarks) {
-                                alert('북마크 백업 형식이 올바르지 않습니다.');
-                                return;
-                            }
-                            // 1번 탭: 할 일 목록 복원
-                            appData = { '1': importedData.tab1_todo['1'] || [] };
-                            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-
-                            // 2번 탭: 텍스트 메모 복원
-                            if (hasMemo) {
-                                const safeMemo = sanitizeMemoHTML(importedData.tab2_memo);
-                                localStorage.setItem('todoweb3_memo', safeMemo);
-                                document.getElementById('memo-editor').innerHTML = safeMemo;
-                            }
-
-                            // 4번 탭: 웹 사이트 등록 복원
-                            if (hasBookmarks) websiteTool.replaceBookmarks(safeBookmarks);
-
-                            renderCurrentTab();
-
-                        } else if (Array.isArray(importedData)) {
-                            // 구버전: 단순 배열 → 1번 탭으로 이관
-                            appData['1'] = importedData;
-                            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-                            renderCurrentTab();
-
-                        } else if (importedData['1']) {
-                            // 구버전: 탭 객체 → 1번 탭만 복원
-                            appData = { '1': importedData['1'] || [] };
-                            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-                            renderCurrentTab();
-
+            exportBtn.addEventListener('click', async () => {
+                if (!dbLoaded || dbSaving) {
+                    alert('DB 불러오기가 완료되지 않았습니다.');
+                    return;
+                }
+                dbSaving = true;
+                exportBtn.disabled = true;
+                const original = exportBtn.textContent;
+                exportBtn.textContent = '저장 중...';
+                try {
+                    saveToStorage();
+                    const data = {
+                        tab1_todo: appData,
+                        tab2_memo: sanitizeMemoHTML(document.getElementById('memo-editor').innerHTML),
+                        tab4_bookmarks: websiteTool.getBookmarks()
+                    };
+                    const response = await fetch('/api/state', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({data, updated_at: dbRevision})
+                    });
+                    const result = await response.json();
+                    if (!response.ok) {
+                        if (response.status === 409) {
+                            alert('다른 창에서 DB가 변경되었습니다. 현재 내용을 별도로 보관한 후 새로고침해 주세요.');
                         } else {
-                            alert("올바르지 않은 형식입니다.");
-                            return;
+                            alert('Neon 저장 실패: ' + (result.error || response.status));
                         }
-                        
-                    } catch (err) { alert("오류가 발생했습니다."); }
-                };
-                reader.readAsText(file);
-                event.target.value = '';
+                        return;
+                    }
+                    dbRevision = result.updated_at;
+                    exportBtn.textContent = '✅ 저장됨';
+                    setTimeout(() => {exportBtn.textContent = original;}, 1500);
+                } catch (error) {
+                    alert('저장 중 네트워크 오류가 발생했습니다: ' + error.message);
+                } finally {
+                    dbSaving = false;
+                    exportBtn.disabled = false;
+                    if (exportBtn.textContent === '저장 중...') exportBtn.textContent = original;
+                }
             });
 
             // [추가] 3번 탭 MS 오피스 스타일 컬러 도구 로직
@@ -1698,7 +1663,9 @@
                 return { response, result };
             }
             request('GET').then(({result}) => {
-                if (result.authenticated) overlay.remove();
+                if (result.authenticated) {
+                    window.todoWeb3LoadCloud().then(() => overlay.remove()).catch(e => { error.textContent = e.message; });
+                }
                 else field.focus();
             }).catch(() => {
                 error.textContent = '서버 연결을 확인해 주세요.';
@@ -1714,6 +1681,7 @@
                     const {response, result} = await request('POST', {pin: field.value});
                     if (response.ok && result.authenticated) {
                         field.value = '';
+                        await window.todoWeb3LoadCloud();
                         overlay.remove();
                     } else {
                         error.textContent = response.status === 429

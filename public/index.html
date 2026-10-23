@@ -377,7 +377,18 @@
             transform: scale(1.15);
         }
 
-        /* 3번 탭 컬러 도구 전용 스타일 */
+        /* Compact website list: preserve drag, search, open, and delete behavior. */
+        #bm-list .bm-item, .bm-list .bm-item {
+            min-height: 29px;
+            padding: 4px 7px;
+            box-sizing: border-box;
+        }
+        .bm-list .bm-drag-handle { font-size: 13px; margin-right: 6px; }
+        .bm-list .bm-link { gap: 4px; align-items: center; }
+        .bm-list .bm-name { font-size: 12px; }
+        .bm-list .bm-url { font-size: 10px; }
+        .bm-list .bm-delete-btn { font-size: 13px; padding: 1px 3px; margin-left: 4px; }
+                /* 3번 탭 컬러 도구 전용 스타일 */
         #color-tool-view {
             display: flex;
             flex-direction: column;

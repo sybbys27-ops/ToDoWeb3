@@ -1828,6 +1828,8 @@
             const geminiSend = document.getElementById('gemini-send');
             const geminiStatus = document.getElementById('gemini-status');
             const geminiAnswer = document.getElementById('gemini-answer');
+            // Match the compact mockup: answer above the four image controls.
+            document.getElementById('gemini-pick-image').parentElement.before(geminiAnswer);
             geminiSend.addEventListener('click', async () => {
                 const question = geminiQuestion.value.trim();
                 if (!question) {geminiStatus.textContent='질문을 입력해 주세요.'; return;}

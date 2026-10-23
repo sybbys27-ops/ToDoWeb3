@@ -12,12 +12,12 @@ export default async function handler(req, res) {
   const {image, mimeType} = req.body || {};
   if (typeof image !== 'string' || !['image/png','image/jpeg','image/webp'].includes(mimeType))
     return res.status(400).json({error:'PNG, JPG, WEBP 이미지만 업로드 가능합니다.'});
-  // 2 MiB decoded; base64 sends ~2.8 MiB in a JSON request.
-  if (image.length > 2800000 || !/^[a-zA-Z0-9+/]*={0,2}$/.test(image))
-    return res.status(413).json({error:'이미지는 2MB 이하로 선택해 주세요.'});
+  // 3 MiB decoded; base64 sends ~4 MiB in a JSON request.
+  if (image.length > 4200000 || !/^[a-zA-Z0-9+/]*={0,2}$/.test(image))
+    return res.status(413).json({error:'이미지는 3MB 이하로 선택해 주세요.'});
   const data = Buffer.from(image,'base64');
-  if (!data.length || data.length > 2*1024*1024)
-    return res.status(413).json({error:'이미지는 2MB 이하로 선택해 주세요.'});
+  if (!data.length || data.length > 3*1024*1024)
+    return res.status(413).json({error:'이미지는 3MB 이하로 선택해 주세요.'});
   const png = data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
   const jpg = data[0]===0xff && data[1]===0xd8 && data[2]===0xff;
   const webp = data.toString('ascii',0,4)==='RIFF' && data.toString('ascii',8,12)==='WEBP';

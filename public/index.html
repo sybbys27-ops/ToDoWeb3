@@ -778,7 +778,8 @@
             } else {
                 document.getElementById('launcher-screen').style.display = 'none';
                 document.getElementById('app-container').style.display = 'block';
-                initApp(START_WIDTH, START_HEIGHT); 
+                initApp(START_WIDTH, START_HEIGHT);
+                setupPinLock(); 
             }
         });
 
@@ -1660,6 +1661,73 @@
 
             initMemoTool();
             websiteTool = initWebsiteTool();
+        }
+
+        // PIN gate: protects the visible app and checks the HttpOnly session server-side.
+        function setupPinLock() {
+            const overlay = document.createElement('div');
+            overlay.id = 'pin-lock';
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#fff7c9;display:flex;align-items:center;justify-content:center;padding:15px;box-sizing:border-box;';
+            overlay.innerHTML = `
+                <form id="pin-form" style="display:flex;align-items:center;gap:6px;max-width:100%">
+                    <label for="pin-code" style="font-size:13px;font-weight:bold">PIN</label>
+                    <input id="pin-code" type="password" inputmode="numeric" pattern="[0-9]{4}"
+                       maxlength="4" autocomplete="off" aria-label="4자리 PIN"
+                       style="width:58px;height:30px;text-align:center;font-size:16px;letter-spacing:2px;box-sizing:border-box;border:1px solid #999;border-radius:4px">
+                    <button type="submit" style="height:30px">확인</button>
+                </form>
+                <div id="pin-error" role="alert" style="position:absolute;top:calc(50% + 32px);font-size:12px;color:#b91c1c;text-align:center;padding:0 10px"></div>`;
+            document.body.appendChild(overlay);
+            const field = document.getElementById('pin-code');
+            const form = document.getElementById('pin-form');
+            const error = document.getElementById('pin-error');
+            const button = form.querySelector('button');
+            field.addEventListener('input', () => {
+                field.value = field.value.replace(/[^0-9]/g, '').slice(0, 4);
+                error.textContent = '';
+            });
+            async function request(method, data) {
+                const response = await fetch('/api/auth', {
+                    method,
+                    headers: data ? {'Content-Type': 'application/json'} : {},
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    body: data ? JSON.stringify(data) : undefined
+                });
+                const result = await response.json();
+                return { response, result };
+            }
+            request('GET').then(({result}) => {
+                if (result.authenticated) overlay.remove();
+                else field.focus();
+            }).catch(() => {
+                error.textContent = '서버 연결을 확인해 주세요.';
+            });
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                if (!/^\d{4}$/.test(field.value)) {
+                    error.textContent = '숫자 4자리를 입력해 주세요.';
+                    return;
+                }
+                button.disabled = true;
+                try {
+                    const {response, result} = await request('POST', {pin: field.value});
+                    if (response.ok && result.authenticated) {
+                        field.value = '';
+                        overlay.remove();
+                    } else {
+                        error.textContent = response.status === 429
+                            ? '시도가 많습니다. 약 15분 후 다시 시도해 주세요.'
+                            : response.status === 401 ? 'PIN 번호가 다릅니다.' : '인증 오류가 발생했습니다.';
+                        field.value = '';
+                        field.focus();
+                    }
+                } catch {
+                    error.textContent = '서버 연결 오류가 발생했습니다.';
+                } finally {
+                    button.disabled = false;
+                }
+            });
         }
     </script>
 </body>

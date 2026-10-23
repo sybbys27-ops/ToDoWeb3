@@ -16,8 +16,26 @@ export default async function handler(req, res) {
   if (!key) return res.status(503).json({error: 'GEMINI_API_KEY 환경변수가 필요합니다. Preview를 재배포해 주세요.'});
 
   const parts = [{text: '너는 유용한 단발성 질의응답 도우미야. 다음 질문에 핵심만 간단히 답변해줘:\n\n' + question.trim()}];
+  const inlineImage = req.body?.inlineImage;
+  if (inlineImage != null) {
+    const mime = inlineImage?.mimeType;
+    const base64 = inlineImage?.data;
+    if (!['image/png','image/jpeg','image/webp'].includes(mime) ||
+        typeof base64 !== 'string' || base64.length > 2800000 ||
+        !/^[a-zA-Z0-9+/]*={0,2}$/.test(base64)) {
+      return res.status(400).json({error:'올바른 이미지(2MB 이하)가 필요합니다.'});
+    }
+    const bytes = Buffer.from(base64, 'base64');
+    if (!bytes.length || bytes.length > 2*1024*1024 ||
+        !(mime==='image/png' && bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ||
+          mime==='image/jpeg' && bytes[0]===255 && bytes[1]===216 && bytes[2]===255 ||
+          mime==='image/webp' && bytes.toString('ascii',0,4)==='RIFF' && bytes.toString('ascii',8,12)==='WEBP')) {
+      return res.status(400).json({error:'이미지 형식 또는 크기 오류'});
+    }
+    parts.push({inline_data:{mime_type:mime,data:base64}});
+  }
   const imageKey = req.body?.imageKey;
-  if (imageKey != null) {
+  if (imageKey != null && inlineImage == null) {
     if (typeof imageKey !== 'string' ||
         !/^gemini-input\/\d{4}-\d{2}-\d{2}\/[a-f0-9-]{36}\.(png|jpg|webp)$/.test(imageKey))
       return res.status(400).json({error: '잘못된 이미지 경로입니다.'});

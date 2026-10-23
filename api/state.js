@@ -1,4 +1,4 @@
-import { isAuthenticated } from './_session.js';
+import { isAuthenticated } from '../lib/session.js';
 
 import { neon } from '@neondatabase/serverless';
 

@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   if (!key) return res.status(503).json({error: 'GEMINI_API_KEY 환경변수가 필요합니다. Preview를 재배포해 주세요.'});
 
   const requestBody = JSON.stringify({
-    contents: [{role: 'user', parts: [{text: '너는 유용한 단발성 질의응답 도우미야. 다음 질문에 핵심만 간단히 답변해줘:\\n\\n' + question.trim()}]}]
+    contents: [{role: 'user', parts: [{text: '너는 유용한 단발성 질의응답 도우미야. 다음 질문에 핵심만 간단히 답변해줘:\n\n' + question.trim()}]}]
   });
 
   for (let i = 0; i < MODELS.length; i++) {

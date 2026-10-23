@@ -1757,57 +1757,79 @@
                 if (old) { old.remove(); return; }
                 const panel = document.createElement('div');
                 panel.id='gemini-storage-panel';
-                panel.style.cssText='background:#fff;border:1px solid #999;max-height:220px;overflow:auto;padding:5px;font-size:12px;';
-                panel.textContent='Neon 이미지 목록 불러오는 중...';
-                document.getElementById('gemini-answer').before(panel);
+                panel.style.cssText='background:#fff;border:1px solid #999;max-height:270px;overflow:auto;padding:5px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;';
+                panel.textContent='이미지 보관함 불러오는 중...';
+                document.getElementById('gemini-image-status').after(panel);
                 try {
                     const response=await fetch('/api/storage-images',{credentials:'same-origin',cache:'no-store'});
                     const result=await response.json();
                     if(!response.ok) throw Error(result.error||'목록 오류');
                     panel.replaceChildren();
-                    if(!result.items?.length) {panel.textContent='저장된 이미지가 없습니다.';return;}
+                    if(!result.items?.length) { panel.textContent='저장된 이미지가 없습니다.';return; }
                     for(const item of result.items) {
-                        const row=document.createElement('div');
-                        row.style.cssText='display:flex;gap:4px;align-items:center;border-bottom:1px solid #ddd;padding:4px 0;';
-                        const name=document.createElement('span');
-                        name.style.cssText='flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-                        name.title=item.key;
-                        name.textContent=item.key.split('/').pop()+' ('+Math.round(item.size/1024)+'KB)';
+                        const tile=document.createElement('div');
+                        tile.style.cssText='min-width:0;display:flex;flex-direction:column;gap:3px;';
+                        const picture=document.createElement('img');
+                        picture.alt='저장된 이미지 미리보기';
+                        picture.title=item.key;
+                        picture.loading='lazy';
+                        picture.style.cssText='width:100%;height:65px;object-fit:cover;background:#eee;border:1px solid #ddd;box-sizing:border-box;';
+                        const controls=document.createElement('div');
+                        controls.style.cssText='display:flex;gap:2px;';
                         const view=document.createElement('button');
                         view.textContent='열기';
-                        view.onclick=async()=>{
-                            try {
-                                const response=await fetch('/api/storage-images?key='+encodeURIComponent(item.key),{credentials:'same-origin'});
-                                const result=await response.json();
-                                if(!response.ok)throw Error(result.error||'URL 생성 실패');
-                                window.open(result.url,'_blank','noopener,noreferrer');
-                            }catch(e){imageStatus.textContent='❌ '+e.message;}
-                        };
                         const attach=document.createElement('button');
                         attach.textContent='첨부';
+                        for (const btn of [view,attach]) {
+                            btn.style.cssText='flex:1;min-width:0;padding:3px 0;font-size:11px;white-space:nowrap;';
+                            controls.appendChild(btn);
+                        }
+                        tile.append(picture,controls);
+                        panel.appendChild(tile);
+                        async function signedUrl() {
+                            const r=await fetch('/api/storage-images?key='+encodeURIComponent(item.key),{credentials:'same-origin',cache:'no-store'});
+                            const d=await r.json();
+                            if(!r.ok)throw Error(d.error||'이미지 URL 오류');
+                            return d.url;
+                        }
+                        // On-demand signed URLs; no public Storage bucket.
+                        signedUrl().then(url=>{picture.src=url;}).catch(()=>{picture.alt='미리보기 실패';});
+                        view.onclick=async()=>{
+                            // Open an empty window immediately to avoid popup blockers.
+                            const tab=window.open('about:blank','_blank');
+                            try {
+                                const url=await signedUrl();
+                                if(tab) tab.location.replace(url);
+                                else imageStatus.textContent='팝업이 차단되었습니다.';
+                            }catch(e){ if(tab)tab.close();imageStatus.textContent='❌ '+e.message;}
+                        };
                         attach.onclick=async()=>{
                             attach.disabled=true;
                             try {
-                                const response=await fetch('/api/storage-images?mode=data&key='+encodeURIComponent(item.key),{credentials:'same-origin'});
-                                const result=await response.json();
-                                if(!response.ok)throw Error(result.error||'이미지 불러오기 실패');
-                                setImage({mimeType:result.mimeType,data:result.data});
+                                const r=await fetch('/api/storage-images?mode=data&key='+encodeURIComponent(item.key),{credentials:'same-origin'});
+                                const d=await r.json();
+                                if(!r.ok)throw Error(d.error||'이미지 불러오기 실패');
+                                setImage({mimeType:d.mimeType,data:d.data});
                                 imageStatus.textContent='✅ 보관함 이미지 첨부 준비 완료';
                                 panel.remove();
                             }catch(e){imageStatus.textContent='❌ '+e.message;}
                             finally {attach.disabled=false;}
                         };
-                        row.append(name,view,attach);panel.appendChild(row);
                     }
                     if(result.truncated) {
-                        const note=document.createElement('p');note.textContent='최신 100개 이외의 파일은 Neon 콘솔에서 확인하세요.';panel.appendChild(note);
+                        const note=document.createElement('p');
+                        note.style.gridColumn='1/-1';
+                        note.textContent='최신 100개만 표시됩니다.';
+                        panel.appendChild(note);
                     }
-                }catch(e){panel.textContent='❌ '+e.message;}
+                }catch(e){panel.style.display='block';panel.textContent='❌ '+e.message;}
             });
             const geminiQuestion = document.getElementById('gemini-question');
             const geminiSend = document.getElementById('gemini-send');
             const geminiStatus = document.getElementById('gemini-status');
             const geminiAnswer = document.getElementById('gemini-answer');
+            // Match the compact mockup: answer above the four image controls.
+            document.getElementById('gemini-pick-image').parentElement.before(geminiAnswer);
             geminiSend.addEventListener('click', async () => {
                 const question = geminiQuestion.value.trim();
                 if (!question) {geminiStatus.textContent='질문을 입력해 주세요.'; return;}

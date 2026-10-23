@@ -1,0 +1,10 @@
+
+{
+  "name": "todoweb3",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.0"
+  }
+}

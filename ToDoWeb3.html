@@ -1,0 +1,1666 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>ToDoList - 가라실험실</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            background-color: #f1f5f9; 
+            overflow-y: auto; 
+        }
+
+        /* 런처 화면 스타일 */
+        #launcher-screen {
+            display: flex;
+            height: 100vh;
+            align-items: center;
+            justify-content: center;
+        }
+        .launcher-box {
+            text-align: center;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .launcher-btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .launcher-btn:hover { background: #45a049; }
+
+        /* 앱 컨테이너 스타일 */
+        .container { 
+            width: 100%; 
+            min-height: 100vh; 
+            background-color: #fef5c1; 
+            padding: 15px; 
+            box-sizing: border-box; 
+        }
+        
+        /* [추가] 타이틀과 탭 버튼을 나란히 배치하는 영역 */
+        .header-area {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px; 
+        }
+
+        .header-area h2 {
+            margin: 0;
+            font-size: 19px;
+            white-space: nowrap;
+        }
+
+        /* [추가] 탭 버튼 스타일 */
+        .tab-buttons {
+            display: flex;
+            gap: 5px;
+            flex-shrink: 0;
+        }
+
+        .tab-btn {
+            width: 32px;
+            height: 26px;
+            font-size: 15px;
+            font-weight: bold;
+            border: 1px solid #666;
+            border-radius: 4px;
+            cursor: pointer;
+            opacity: 0.4; /* 선택되지 않은 탭은 흐리게 */
+            transition: all 0.2s;
+        }
+        
+        /* 탭별 고유 색상 지정 */
+        .tab-btn[data-tab="1"] { background-color: #a3e635; }
+        .tab-btn[data-tab="2"] { background-color: #7dd3fc; }
+        .tab-btn[data-tab="3"] { background-color: #2aaca0; color: #fff; }
+        .tab-btn[data-tab="4"] { background-color: #fb923c; color: #fff; }
+
+        /* 활성화된 탭 스타일 */
+        .tab-btn.active {
+            opacity: 1;
+            border: 2px solid #000;
+            transform: scale(1.1); /* 선택 시 살짝 커짐 */
+        }
+
+        /* 2번 탭 텍스트 메모장 전용 스타일 */
+        #memo-view {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .memo-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 5px 8px;
+            box-sizing: border-box;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+
+        .memo-color-group {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .memo-tool-label {
+            font-size: 12px;
+            font-weight: bold;
+            color: #475569;
+        }
+
+        .memo-color-palette {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .memo-color-btn {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #ffffff;
+            outline: 1px solid #cbd5e1;
+            cursor: pointer;
+            box-sizing: border-box;
+            padding: 0;
+            transition: transform 0.15s, outline 0.15s;
+        }
+        .memo-color-btn:hover {
+            transform: scale(1.2);
+        }
+        .memo-color-btn.active {
+            outline: 2px solid #000000;
+            transform: scale(1.15);
+        }
+
+        .memo-tool-right {
+            display: flex;
+            gap: 5px;
+        }
+
+        .memo-action-btn {
+            height: 24px;
+            padding: 0 6px;
+            font-size: 11px;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s;
+        }
+        .memo-action-btn:hover {
+            background: #e2e8f0;
+        }
+
+        #memo-editor {
+            width: 100%;
+            height: 400px;
+            box-sizing: border-box;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 15px; /* 투두 텍스트와 동일한 크기 */
+            line-height: 1.5;
+            color: #000000;
+            outline: none;
+            overflow-x: hidden; /* 가로 스크롤 절대 생기지 않음 */
+            overflow-y: auto;   /* 길이 방향(세로)만 스크롤 생성 */
+            word-break: break-all;
+            white-space: pre-wrap;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.04);
+        }
+        #memo-editor:focus {
+            border-color: #2563eb;
+        }
+        #memo-editor:empty:before {
+            content: attr(placeholder);
+            color: #94a3b8;
+            pointer-events: none;
+        }
+
+        /* 4번 탭 웹 사이트 등록 전용 스타일 */
+        #website-tool-view {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .bm-top-tip {
+            font-size: 11px;
+            color: #64748b;
+            margin: 0;
+        }
+
+        .bm-input-area {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .bm-input {
+            flex: 1;
+            min-width: 0;
+            height: 32px;
+            padding: 0 8px;
+            font-size: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            background: #fff;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .bm-input:focus { border-color: #2563eb; }
+        #bm-name-input {
+            flex: 0.75; /* 25% 축소 */
+            min-width: 0;
+        }
+        #bm-url-input {
+            flex: 1.1;
+            min-width: 0;
+        }
+
+        .bm-add-btn {
+            height: 32px;
+            padding: 0 12px;
+            font-size: 13px;
+            font-weight: bold;
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+        .bm-add-btn:hover { background: #1d4ed8; }
+
+        .bm-search-area {
+            width: 100%;
+        }
+
+        .bm-search-input {
+            width: 100%;
+            height: 30px;
+            padding: 0 10px;
+            font-size: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            background: #f8fafc;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .bm-search-input:focus {
+            background: #fff;
+            border-color: #2563eb;
+        }
+
+        .bm-list-container {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .bm-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 420px;
+            overflow-y: auto;
+        }
+
+        .bm-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            border-bottom: 1px solid #f1f5f9;
+            background: #fff;
+            transition: background 0.1s;
+        }
+        .bm-item:last-child { border-bottom: none; }
+        .bm-item:hover { background: #f8fafc; }
+
+        .bm-item.dragging {
+            opacity: 0.4;
+            background: #e2e8f0;
+        }
+        .bm-item.drag-over-before {
+            border-top: 2px solid #2563eb;
+        }
+        .bm-item.drag-over-after {
+            border-bottom: 2px solid #2563eb;
+        }
+
+        .bm-drag-handle {
+            flex-shrink: 0;
+            cursor: grab;
+            color: #94a3b8;
+            font-size: 16px;
+            margin-right: 8px;
+            user-select: none;
+            line-height: 1;
+        }
+        .bm-drag-handle:hover { color: #2563eb; }
+        .bm-drag-handle:active { cursor: grabbing; }
+
+        .bm-info {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .bm-link {
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .bm-link:hover .bm-name {
+            color: #2563eb;
+            text-decoration: underline;
+        }
+
+        .bm-name {
+            font-size: 13px;
+            font-weight: bold;
+            color: #1e293b;
+            flex-shrink: 0;
+        }
+
+        .bm-url {
+            font-size: 11px;
+            color: #64748b;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .bm-delete-btn {
+            background: none;
+            border: none;
+            color: #cbd5e1;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 2px 4px;
+            margin-left: 6px;
+            transition: color 0.15s, transform 0.15s;
+        }
+        .bm-delete-btn:hover {
+            color: #ef4444;
+            transform: scale(1.15);
+        }
+
+        /* 3번 탭 컬러 도구 전용 스타일 */
+        #color-tool-view {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .color-preview-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #ffffff;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+
+        .color-preview-box {
+            width: 58px;
+            height: 58px;
+            border-radius: 8px;
+            border: 2px solid #cbd5e1;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.2);
+            background-color: #2aaca0;
+            flex-shrink: 0;
+            transition: background-color 0.1s;
+        }
+
+        .color-picker-trigger-area {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .picker-btn {
+            display: block;
+            text-align: center;
+            background: #2563eb;
+            color: #ffffff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            transition: background 0.2s;
+        }
+        .picker-btn:hover { background: #1d4ed8; }
+
+        .picker-tip {
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        .color-card {
+            background: #ffffff;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+
+        .code-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .code-row:last-child { margin-bottom: 0; }
+
+        .code-label {
+            width: 36px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #334155;
+        }
+
+        .code-input {
+            flex: 1;
+            height: 28px;
+            padding: 0 8px;
+            font-size: 13px;
+            font-family: Consolas, monospace;
+            font-weight: bold;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            background: #f8fafc;
+            box-sizing: border-box;
+        }
+        .code-input:focus {
+            background: #fff;
+            border-color: #2563eb;
+            outline: none;
+        }
+
+        .copy-btn {
+            height: 28px;
+            padding: 0 10px;
+            font-size: 12px;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover { background: #e2e8f0; }
+        .copy-btn.copied {
+            background: #22c55e;
+            color: white;
+            border-color: #16a34a;
+        }
+
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 7px;
+        }
+        .slider-row:last-child { margin-bottom: 0; }
+
+        .channel-label {
+            width: 58px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .red-label { color: #dc2626; }
+        .green-label { color: #16a34a; }
+        .blue-label { color: #2563eb; }
+
+        .color-slider {
+            flex: 1;
+            cursor: pointer;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .num-input {
+            width: 48px;
+            height: 26px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: bold;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .palette-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: #475569;
+            margin-bottom: 8px;
+        }
+
+        .palette-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 5px;
+        }
+
+        .color-chip {
+            width: 100%;
+            height: 20px;
+            border-radius: 3px;
+            border: 1px solid rgba(0,0,0,0.18);
+            cursor: pointer;
+            box-sizing: border-box;
+            transition: transform 0.15s, border-color 0.15s;
+        }
+        .color-chip:hover {
+            transform: scale(1.25);
+            border-color: #000;
+            z-index: 5;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .file-action-area {
+            margin-bottom: 10px; 
+            display: flex;
+            gap: 8px; 
+        }
+
+        .action-btn {
+            flex: 1;
+            height: 30px;
+            font-size: 13px;
+            background-color: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap; 
+        }
+        .action-btn:hover { background-color: #f1f5f9; }
+
+        #file-input { display: none; }
+
+        .input-area {
+            display: flex;
+            gap: 5px;
+        }
+        #todo-input {
+            flex: 1;
+            height: 30px; 
+            font-size: 16px;
+            padding-left: 10px; 
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        #add-btn {
+            height: 30px; 
+            padding: 0 15px;
+            font-size: 15px;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+
+        /* 리스트 영역 */
+        ul { 
+            line-height: 1.4; 
+            padding-left: 20px; 
+            margin-top: 12px; 
+        } 
+        li {
+            margin-bottom: 5px; 
+            font-size: 15px;
+        }
+        
+        .todo-text { cursor: pointer; }
+        .done { text-decoration: line-through; color: gray; opacity: 0.5; }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            color: red;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        .delete-btn:hover { transform: scale(1.2); }
+    </style>
+</head>
+<body>
+
+    <div id="launcher-screen">
+        <div class="launcher-box">
+            <h2 style="margin-top: 0;">✅ 투두리스트 준비 완료</h2>
+            <p style="color: #666; margin-bottom: 20px;">크롬 주소창과 탭이 없는 깔끔한 <b>독립 앱 화면</b>으로 실행합니다.</p>
+            <button id="launch-app-btn" class="launcher-btn">🚀 앱 화면으로 열기</button>
+        </div>
+    </div>
+
+    <div class="container" id="app-container" style="display: none;">
+        
+        <div class="header-area">
+            <h2 id="app-title">&lt; 할 일 관리 &gt;</h2>
+            <div class="tab-buttons">
+                <button class="tab-btn active" data-tab="1">1</button>
+                <button class="tab-btn" data-tab="2" title="텍스트 메모">2</button>
+                <button class="tab-btn" data-tab="3" title="컬러 도구">3</button>
+                <button class="tab-btn" data-tab="4" title="웹 사이트 등록">4</button>
+            </div>
+        </div>
+
+        <!-- 할 일 관리 영역 (1번 탭) -->
+        <div id="todo-view">
+            <div class="file-action-area">
+                <button class="action-btn" id="import-btn">📂 가져오기</button>
+                <button class="action-btn" id="export-btn">💾 저장하기</button>
+                <button class="action-btn" id="google-btn">🌐 Google</button>
+                <button class="action-btn" id="papago-btn">🦜 papago</button>
+            </div>
+
+            <div class="input-area">
+                <input type="text" id="todo-input" placeholder="할 일을 입력하세요..">
+                <button id="add-btn">추가</button>
+                <input type="file" id="file-input" accept=".json">
+            </div>
+
+            <ul id="todo-list"></ul>
+        </div>
+
+        <!-- 텍스트 메모장 영역 (2번 탭) -->
+        <div id="memo-view" style="display: none;">
+            <div class="memo-toolbar">
+                <div class="memo-color-group">
+                    <span class="memo-tool-label">글자 색상:</span>
+                    <div class="memo-color-palette">
+                        <button type="button" class="memo-color-btn active" data-color="#000000" style="background-color: #000000;" title="검정"></button>
+                        <button type="button" class="memo-color-btn" data-color="#2563eb" style="background-color: #2563eb;" title="파랑"></button>
+                        <button type="button" class="memo-color-btn" data-color="#ef4444" style="background-color: #ef4444;" title="빨강"></button>
+                        <button type="button" class="memo-color-btn" data-color="#16a34a" style="background-color: #16a34a;" title="초록"></button>
+                        <button type="button" class="memo-color-btn" data-color="#9333ea" style="background-color: #9333ea;" title="보라"></button>
+                    </div>
+                </div>
+                <div class="memo-tool-right">
+                    <button type="button" class="memo-action-btn" id="memo-copy-btn" title="전체 복사">📋 복사</button>
+                </div>
+            </div>
+            <div id="memo-editor" contenteditable="true" spellcheck="false" placeholder="여기에 자유롭게 메모를 작성하세요..."></div>
+        </div>
+
+        <!-- 컬러 도구 영역 (3번 탭) -->
+        <div id="color-tool-view" style="display: none;">
+            <!-- 상단 미리보기 & 윈도우 색상 선택창 버튼 -->
+            <div class="color-preview-section">
+                <div id="color-preview" class="color-preview-box"></div>
+                <div class="color-picker-trigger-area">
+                    <label for="native-color-picker" class="picker-btn">
+                        🎨 색 선택기 열기
+                    </label>
+                    <input type="color" id="native-color-picker" value="#2aaca0" style="position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;">
+                    <span class="picker-tip">※ 윈도우 기본 색상 창 &amp; 스포이트 지원</span>
+                </div>
+            </div>
+
+            <!-- 색상 코드 정보 & 원클릭 복사 -->
+            <div class="color-card">
+                <div class="code-row">
+                    <span class="code-label">HEX</span>
+                    <input type="text" id="hex-input" class="code-input" value="#2AACA0" spellcheck="false">
+                    <button class="copy-btn" id="copy-hex-btn">복사</button>
+                </div>
+                <div class="code-row">
+                    <span class="code-label">RGB</span>
+                    <input type="text" id="rgb-input" class="code-input" value="rgb(42, 172, 160)" readonly>
+                    <button class="copy-btn" id="copy-rgb-btn">복사</button>
+                </div>
+            </div>
+
+            <!-- RGB 슬라이더 및 수치 조절 (MS 오피스 사용자 지정 스타일) -->
+            <div class="color-card">
+                <div class="slider-row">
+                    <span class="channel-label red-label">빨강 (R)</span>
+                    <input type="range" id="red-slider" min="0" max="255" value="42" class="color-slider">
+                    <input type="number" id="red-num" min="0" max="255" value="42" class="num-input">
+                </div>
+                <div class="slider-row">
+                    <span class="channel-label green-label">녹색 (G)</span>
+                    <input type="range" id="green-slider" min="0" max="255" value="172" class="color-slider">
+                    <input type="number" id="green-num" min="0" max="255" value="172" class="num-input">
+                </div>
+                <div class="slider-row">
+                    <span class="channel-label blue-label">파랑 (B)</span>
+                    <input type="range" id="blue-slider" min="0" max="255" value="160" class="color-slider">
+                    <input type="number" id="blue-num" min="0" max="255" value="160" class="num-input">
+                </div>
+            </div>
+
+            <!-- MS 오피스 표준 테마 색상 팔레트 -->
+            <div class="color-card">
+                <div class="palette-title">표준 테마 색상</div>
+                <div class="palette-grid" id="preset-palette"></div>
+            </div>
+        </div>
+
+        <!-- 웹 사이트 등록 영역 (4번 탭) -->
+        <div id="website-tool-view" style="display: none;">
+            <div class="bm-top-tip">≡ 드래그로 순서 변경</div>
+
+            <!-- 사이트 등록 입력 폼 -->
+            <div class="bm-input-area">
+                <input type="text" id="bm-name-input" class="bm-input" placeholder="웹사이트 이름 (예: 네이버)">
+                <input type="text" id="bm-url-input" class="bm-input" placeholder="URL 주소 (예: naver.com)">
+                <button type="button" id="bm-add-btn" class="bm-add-btn">추가</button>
+            </div>
+
+            <!-- 실시간 검색창 -->
+            <div class="bm-search-area">
+                <input type="text" id="bm-search-input" class="bm-search-input" placeholder="🔍 이름 또는 주소 검색...">
+            </div>
+
+            <!-- 북마크 리스트 (드래그 앤 드롭 지원) -->
+            <div class="bm-list-container">
+                <ul id="bm-list" class="bm-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const START_WIDTH = 420;  
+        const START_HEIGHT = 600; 
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const isPopup = (window.name === 'todoAppPopup');
+
+            if (!isPopup) {
+                document.getElementById('launch-app-btn').addEventListener('click', () => {
+                    const features = `width=${START_WIDTH},height=${START_HEIGHT},toolbar=no,location=no,status=no,menubar=no,scrollbars=no,resizable=yes`;
+                    window.open(window.location.href, 'todoAppPopup', features);
+                    window.open('', '_self', '');
+                    window.close();
+                });
+            } else {
+                document.getElementById('launcher-screen').style.display = 'none';
+                document.getElementById('app-container').style.display = 'block';
+                initApp(START_WIDTH, START_HEIGHT); 
+            }
+        });
+
+        function initApp(defaultWidth, defaultHeight) {
+            const input = document.getElementById('todo-input');
+            const addBtn = document.getElementById('add-btn');
+            const todoList = document.getElementById('todo-list');
+            const importBtn = document.getElementById('import-btn');
+            const exportBtn = document.getElementById('export-btn');
+            const googleBtn = document.getElementById('google-btn');
+            const papagoBtn = document.getElementById('papago-btn'); 
+            const fileInput = document.getElementById('file-input');
+            
+            const appTitle = document.getElementById('app-title');
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const todoView = document.getElementById('todo-view');
+            const memoView = document.getElementById('memo-view');
+            const colorToolView = document.getElementById('color-tool-view');
+            const websiteToolView = document.getElementById('website-tool-view');
+
+            let fileHandle = null; 
+            let isUserResized = false;
+            let isAutoResizing = false;
+            
+            // [수정] 탭 상태 관리 변수
+            let currentTab = '1';
+            let appData = { '1': [] }; // 1번 탭 투두 데이터 객체
+
+            window.addEventListener('resize', () => {
+                if (!isAutoResizing) isUserResized = true;
+            });
+
+            // 이 버전 전용 저장소입니다. 다른 학습 버전과 데이터를 공유하지 않습니다.
+            const STORAGE_KEY = 'todoweb3_todos';
+            let websiteTool = null;
+
+            function resizeWindowToContent() {
+                if (isUserResized) return; 
+                const contentHeight = 180 + todoList.scrollHeight;
+                const newHeight = Math.max(defaultHeight, contentHeight); 
+                
+                isAutoResizing = true; 
+                window.resizeTo(defaultWidth, newHeight); 
+                setTimeout(() => { isAutoResizing = false; }, 100);
+            }
+
+            // [수정완료] 현재 UI의 리스트를 읽어들여 1번 탭 데이터로 저장
+            function saveToStorage() {
+                if (currentTab !== '1') return; // 1번 탭만 할 일 관리이므로 다른 탭은 투두 저장 건너뜀
+                try {
+                    const todos = [];
+                    const items = todoList.querySelectorAll('li');
+                    items.forEach(item => {
+                        const textSpan = item.querySelector('.todo-text');
+                        todos.push({ text: textSpan.textContent, isDone: textSpan.classList.contains('done') });
+                    });
+                    
+                    appData[currentTab] = todos; // 현재 탭 배열 갱신
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); // 전체 객체 저장
+                } catch(e) {}
+            }
+
+            function createTodoElement(text, isDone) {
+                const newLi = document.createElement('li');
+                const textSpan = document.createElement('span');
+                textSpan.className = 'todo-text';
+                textSpan.textContent = text;
+                if (isDone) textSpan.classList.add('done');
+                
+                const delBtn = document.createElement('button');
+                delBtn.className = 'delete-btn';
+                delBtn.textContent = '❌';
+
+                newLi.appendChild(textSpan);
+                newLi.appendChild(delBtn);
+                todoList.appendChild(newLi);
+            }
+
+            // [수정완료] 화면에 현재 탭의 데이터만 렌더링하는 전용 함수
+            function renderCurrentTab() {
+                todoList.innerHTML = ''; 
+                const currentTodos = appData[currentTab] || [];
+                
+                if (currentTodos.length > 0) {
+                    currentTodos.forEach(todo => createTodoElement(todo.text, todo.isDone));
+                } else if (currentTab === '1' && Object.keys(appData).every(k => appData[k].length === 0)) {
+                    // 최초 실행 시 1번 탭에만 안내 문구 표시
+                    createTodoElement('기본 항목 (클릭하면 줄이 그어져요)', false);
+                    createTodoElement('우측의 ❌를 누르면 삭제됩니다.', false);
+                    saveToStorage();
+                }
+                setTimeout(resizeWindowToContent, 50);
+            }
+
+            // [수정완료] 데이터 불러오기 (구버전 호환성 포함)
+            function loadFromStorage() {
+                try {
+                    const rawData = localStorage.getItem(STORAGE_KEY);
+                    if (rawData && rawData !== '[]' && rawData !== '{}') {
+                        const parsedData = JSON.parse(rawData);
+                        
+                        // 구버전(단일 배열 형식) 또는 객체 데이터를 불러와 1번 탭으로 매핑
+                        if (Array.isArray(parsedData)) {
+                            appData['1'] = parsedData;
+                        } else {
+                            appData = {
+                                '1': parsedData['1'] || []
+                            };
+                        }
+                    }
+                } catch(e) {}
+                renderCurrentTab();
+            }
+
+            // 메모 HTML에서 허용된 서식과 안전한 웹 링크만 보존합니다.
+            function sanitizeMemoHTML(html) {
+                const parsed = new DOMParser().parseFromString(String(html || ''), 'text/html');
+                const cleanRoot = document.createElement('div');
+                const allowedTags = new Set(['A', 'B', 'BLOCKQUOTE', 'BR', 'CODE', 'DEL', 'DIV', 'EM', 'FONT', 'I', 'LI', 'OL', 'P', 'S', 'SPAN', 'STRONG', 'U', 'UL']);
+                const blockedTags = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH', 'TEMPLATE']);
+
+                function copySafeNode(source, destination) {
+                    if (source.nodeType === Node.TEXT_NODE) {
+                        destination.appendChild(document.createTextNode(source.nodeValue || ''));
+                        return;
+                    }
+                    if (source.nodeType !== Node.ELEMENT_NODE) return;
+                    const tag = source.tagName.toUpperCase();
+                    if (blockedTags.has(tag)) return;
+                    if (!allowedTags.has(tag)) {
+                        source.childNodes.forEach(child => copySafeNode(child, destination));
+                        return;
+                    }
+                    const safeElement = document.createElement(tag === 'FONT' ? 'span' : tag.toLowerCase());
+                    if (tag === 'A') {
+                        try {
+                            const linkUrl = new URL(source.getAttribute('href') || '', window.location.href);
+                            if (['http:', 'https:', 'mailto:'].includes(linkUrl.protocol)) {
+                                safeElement.setAttribute('href', linkUrl.href);
+                                if (linkUrl.protocol !== 'mailto:') {
+                                    safeElement.setAttribute('target', '_blank');
+                                    safeElement.setAttribute('rel', 'noopener noreferrer');
+                                }
+                            }
+                        } catch (e) { }
+                    }
+                    if (tag === 'SPAN' || tag === 'FONT') {
+                        const color = tag === 'FONT' ? source.getAttribute('color') : source.style.color;
+                        const colorProbe = document.createElement('span');
+                        if (color && !/[;{}]/.test(color)) colorProbe.style.color = color;
+                        if (colorProbe.style.color) safeElement.style.color = colorProbe.style.color;
+                    }
+                    destination.appendChild(safeElement);
+                    source.childNodes.forEach(child => copySafeNode(child, safeElement));
+                }
+
+                parsed.body.childNodes.forEach(node => copySafeNode(node, cleanRoot));
+                return cleanRoot.innerHTML;
+            }
+
+            // [수정] 탭 클릭 시 이벤트 제어 (1: 할일, 2: 텍스트 메모, 3: 컬러 도구, 4: 웹 사이트 등록)
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    if (currentTab === '1') {
+                        saveToStorage(); // 1번 할 일 탭일 때만 저장
+                    }
+
+                    currentTab = e.target.getAttribute('data-tab'); // 탭 번호 변경
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+
+                    // 모든 뷰 숨김
+                    todoView.style.display = 'none';
+                    memoView.style.display = 'none';
+                    colorToolView.style.display = 'none';
+                    websiteToolView.style.display = 'none';
+
+                    if (currentTab === '1') {
+                        appTitle.innerHTML = '&lt; 할 일 관리 &gt;';
+                        todoView.style.display = 'block';
+                        renderCurrentTab();
+                    } else if (currentTab === '2') {
+                        appTitle.innerHTML = '&lt; 텍스트 메모 &gt;';
+                        memoView.style.display = 'flex';
+                    } else if (currentTab === '3') {
+                        appTitle.innerHTML = '&lt; 컬러 도구 &gt;';
+                        colorToolView.style.display = 'flex';
+                    } else if (currentTab === '4') {
+                        appTitle.innerHTML = '&lt; 웹 사이트 등록 &gt;';
+                        websiteToolView.style.display = 'flex';
+                    }
+                });
+            });
+
+            loadFromStorage();
+
+            addBtn.addEventListener('click', () => {
+                const text = input.value.trim();
+                if (text === '') return; 
+                createTodoElement(text, false);
+                input.value = '';
+                saveToStorage(); 
+                setTimeout(resizeWindowToContent, 10);
+            });
+
+            todoList.addEventListener('click', (event) => {
+                if (event.target.classList.contains('delete-btn')) {
+                    event.target.parentElement.remove(); 
+                    saveToStorage(); 
+                    setTimeout(resizeWindowToContent, 10); 
+                } 
+                else if (event.target.classList.contains('todo-text')) {
+                    event.target.classList.toggle('done'); 
+                    saveToStorage(); 
+                }
+            });
+
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') addBtn.click(); 
+            });
+
+            // Google 버튼
+            googleBtn.addEventListener('click', () => {
+                const targetWidth = 755; 
+                const targetHeight = 660; 
+                const features = `width=${targetWidth},height=${targetHeight},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`;
+                window.open('https://www.google.com', 'GoogleSearchPopup', features);
+            });
+
+            // Papago 버튼
+            papagoBtn.addEventListener('click', () => {
+                const targetWidth = 400;  
+                const targetHeight = 720; 
+                const features = `width=${targetWidth},height=${targetHeight},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`;
+                window.open('https://papago.naver.com/', 'PapagoPopup', features);
+            });
+
+            exportBtn.addEventListener('click', async () => {
+                saveToStorage(); // 내보내기 전 1번 탭 상태 확실하게 동기화
+
+                // 1~4번 탭 전체 데이터를 하나의 JSON으로 통합 저장
+                const fullBackup = {
+                    version: 3,
+                    tab1_todo: appData,                                                          // 1번: 할 일 목록
+                    tab2_memo: sanitizeMemoHTML(localStorage.getItem('todoweb3_memo') || ''),      // 2번: 텍스트 메모 (HTML)
+                    tab4_bookmarks: websiteTool ? websiteTool.getBookmarks() : []                 // 4번: 웹 사이트 등록
+                };
+                const rawData = JSON.stringify(fullBackup, null, 2); 
+                
+                try {
+                    if ('showSaveFilePicker' in window) {
+                        if (!fileHandle) {
+                            fileHandle = await window.showSaveFilePicker({
+                                suggestedName: `${STORAGE_KEY}.json`,
+                                types: [{ description: 'JSON 데이터', accept: {'application/json': ['.json']} }]
+                            });
+                        }
+                        
+                        const writable = await fileHandle.createWritable();
+                        await writable.write(rawData);
+                        await writable.close();
+
+                        const originalText = exportBtn.innerHTML;
+                        exportBtn.innerHTML = '✅ 저장됨!';
+                        exportBtn.style.backgroundColor = '#edfaf1';
+                        setTimeout(() => {
+                            exportBtn.innerHTML = originalText;
+                            exportBtn.style.backgroundColor = '#fff';
+                        }, 1500);
+
+                    } else {
+                        const blob = new Blob([rawData], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${STORAGE_KEY}.json`; 
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    }
+                } catch (err) {
+                    console.log("저장 취소됨 또는 오류 발생");
+                }
+            });
+
+            importBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+
+                        // v3 통합 백업 파일인지 판별 (tab1_todo 키 존재 여부)
+                        if (importedData && importedData.version >= 3 && importedData.tab1_todo && importedData.tab1_todo['1'] && Array.isArray(importedData.tab1_todo['1'])) {
+                            const hasMemo = Object.prototype.hasOwnProperty.call(importedData, 'tab2_memo');
+                            const hasBookmarks = Object.prototype.hasOwnProperty.call(importedData, 'tab4_bookmarks');
+                            if (hasMemo && typeof importedData.tab2_memo !== 'string') {
+                                alert('메모 백업 형식이 올바르지 않습니다.');
+                                return;
+                            }
+                            const safeBookmarks = hasBookmarks && websiteTool
+                                ? websiteTool.prepareBookmarks(importedData.tab4_bookmarks)
+                                : null;
+                            if (hasBookmarks && !safeBookmarks) {
+                                alert('북마크 백업 형식이 올바르지 않습니다.');
+                                return;
+                            }
+                            // 1번 탭: 할 일 목록 복원
+                            appData = { '1': importedData.tab1_todo['1'] || [] };
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+
+                            // 2번 탭: 텍스트 메모 복원
+                            if (hasMemo) {
+                                const safeMemo = sanitizeMemoHTML(importedData.tab2_memo);
+                                localStorage.setItem('todoweb3_memo', safeMemo);
+                                document.getElementById('memo-editor').innerHTML = safeMemo;
+                            }
+
+                            // 4번 탭: 웹 사이트 등록 복원
+                            if (hasBookmarks) websiteTool.replaceBookmarks(safeBookmarks);
+
+                            renderCurrentTab();
+
+                        } else if (Array.isArray(importedData)) {
+                            // 구버전: 단순 배열 → 1번 탭으로 이관
+                            appData['1'] = importedData;
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+                            renderCurrentTab();
+
+                        } else if (importedData['1']) {
+                            // 구버전: 탭 객체 → 1번 탭만 복원
+                            appData = { '1': importedData['1'] || [] };
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+                            renderCurrentTab();
+
+                        } else {
+                            alert("올바르지 않은 형식입니다.");
+                            return;
+                        }
+                        
+                    } catch (err) { alert("오류가 발생했습니다."); }
+                };
+                reader.readAsText(file);
+                event.target.value = '';
+            });
+
+            // [추가] 3번 탭 MS 오피스 스타일 컬러 도구 로직
+            function initColorTool() {
+                const colorPreview = document.getElementById('color-preview');
+                const nativeColorPicker = document.getElementById('native-color-picker');
+                const hexInput = document.getElementById('hex-input');
+                const rgbInput = document.getElementById('rgb-input');
+                const copyHexBtn = document.getElementById('copy-hex-btn');
+                const copyRgbBtn = document.getElementById('copy-rgb-btn');
+
+                const redSlider = document.getElementById('red-slider');
+                const greenSlider = document.getElementById('green-slider');
+                const blueSlider = document.getElementById('blue-slider');
+                const redNum = document.getElementById('red-num');
+                const greenNum = document.getElementById('green-num');
+                const blueNum = document.getElementById('blue-num');
+                const presetPalette = document.getElementById('preset-palette');
+
+                // 초기 색상: 가라형님이 보여주신 청록색 (42, 172, 160)
+                let curR = 42;
+                let curG = 172;
+                let curB = 160;
+
+                function componentToHex(c) {
+                    const hex = Math.max(0, Math.min(255, c)).toString(16);
+                    return hex.length === 1 ? '0' + hex : hex;
+                }
+
+                function rgbToHex(r, g, b) {
+                    return ('#' + componentToHex(r) + componentToHex(g) + componentToHex(b)).toUpperCase();
+                }
+
+                function hexToRgb(hex) {
+                    let cleanHex = hex.replace('#', '').trim();
+                    if (cleanHex.length === 3) {
+                        cleanHex = cleanHex.split('').map(c => c + c).join('');
+                    }
+                    if (cleanHex.length !== 6) return null;
+                    const num = parseInt(cleanHex, 16);
+                    if (isNaN(num)) return null;
+                    return {
+                        r: (num >> 16) & 255,
+                        g: (num >> 8) & 255,
+                        b: num & 255
+                    };
+                }
+
+                function updateColorUI(fromSource) {
+                    const hex = rgbToHex(curR, curG, curB);
+                    const rgbStr = `rgb(${curR}, ${curG}, ${curB})`;
+
+                    colorPreview.style.backgroundColor = hex;
+                    rgbInput.value = rgbStr;
+
+                    if (fromSource !== 'hex') hexInput.value = hex;
+                    if (fromSource !== 'picker') nativeColorPicker.value = hex.toLowerCase();
+
+                    if (fromSource !== 'slider') {
+                        redSlider.value = curR;
+                        greenSlider.value = curG;
+                        blueSlider.value = curB;
+                    }
+                    if (fromSource !== 'number') {
+                        redNum.value = curR;
+                        greenNum.value = curG;
+                        blueNum.value = curB;
+                    }
+                }
+
+                // 슬라이더 조절 이벤트
+                [redSlider, greenSlider, blueSlider].forEach(slider => {
+                    slider.addEventListener('input', () => {
+                        curR = parseInt(redSlider.value, 10) || 0;
+                        curG = parseInt(greenSlider.value, 10) || 0;
+                        curB = parseInt(blueSlider.value, 10) || 0;
+                        updateColorUI('slider');
+                    });
+                });
+
+                // 숫자 인풋 조절 이벤트
+                [redNum, greenNum, blueNum].forEach(numInput => {
+                    numInput.addEventListener('input', () => {
+                        curR = Math.max(0, Math.min(255, parseInt(redNum.value, 10) || 0));
+                        curG = Math.max(0, Math.min(255, parseInt(greenNum.value, 10) || 0));
+                        curB = Math.max(0, Math.min(255, parseInt(blueNum.value, 10) || 0));
+                        updateColorUI('number');
+                    });
+                });
+
+                // 윈도우 네이티브 색상 선택기 연동 (창에서 색 고르면 즉시 동기화)
+                nativeColorPicker.addEventListener('input', (e) => {
+                    const rgb = hexToRgb(e.target.value);
+                    if (rgb) {
+                        curR = rgb.r;
+                        curG = rgb.g;
+                        curB = rgb.b;
+                        updateColorUI('picker');
+                    }
+                });
+
+                // HEX 직접 입력 연동
+                hexInput.addEventListener('input', (e) => {
+                    const rgb = hexToRgb(e.target.value);
+                    if (rgb) {
+                        curR = rgb.r;
+                        curG = rgb.g;
+                        curB = rgb.b;
+                        updateColorUI('hex');
+                    }
+                });
+
+                // 클립보드 원클릭 복사 함수
+                function copyToClipboard(text, btnElement) {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text);
+                    } else {
+                        const tempArea = document.createElement('textarea');
+                        tempArea.value = text;
+                        document.body.appendChild(tempArea);
+                        tempArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(tempArea);
+                    }
+                    const origText = btnElement.textContent;
+                    btnElement.textContent = '✔ 복사됨';
+                    btnElement.classList.add('copied');
+                    setTimeout(() => {
+                        btnElement.textContent = origText;
+                        btnElement.classList.remove('copied');
+                    }, 1200);
+                }
+
+                copyHexBtn.addEventListener('click', () => copyToClipboard(hexInput.value, copyHexBtn));
+                copyRgbBtn.addEventListener('click', () => copyToClipboard(rgbInput.value, copyRgbBtn));
+
+                // MS 오피스 표준 테마 색상 40가지 그리드 생성
+                const officeColors = [
+                    '#FFFFFF', '#000000', '#EEECE1', '#1F497D', '#4F81BD', '#C0504D', '#9BBB59', '#8064A2', '#4BACC6', '#F79646',
+                    '#F2F2F2', '#7F7F7F', '#DDD9C3', '#C6D9F0', '#DBE5F1', '#F2DCDB', '#EBF1DD', '#E5E0EC', '#DBEEF3', '#FDEADA',
+                    '#D9D9D9', '#595959', '#C4BD97', '#8DB3E2', '#B8CCE4', '#E5B9B7', '#D7E3BC', '#CCC1DA', '#B7DDE8', '#FBD5B5',
+                    '#C00000', '#FF0000', '#FFC000', '#FFFF00', '#92D050', '#00B050', '#00B0F0', '#0070C0', '#002060', '#7030A0'
+                ];
+
+                officeColors.forEach(colorHex => {
+                    const chip = document.createElement('div');
+                    chip.className = 'color-chip';
+                    chip.style.backgroundColor = colorHex;
+                    chip.title = colorHex;
+                    chip.addEventListener('click', () => {
+                        const rgb = hexToRgb(colorHex);
+                        if (rgb) {
+                            curR = rgb.r;
+                            curG = rgb.g;
+                            curB = rgb.b;
+                            updateColorUI();
+                        }
+                    });
+                    presetPalette.appendChild(chip);
+                });
+
+                // 초기 색상 화면 렌더링
+                updateColorUI();
+            }
+
+            initColorTool();
+
+            // [추가] 4번 탭 웹 사이트 등록 (북마크) 로직
+            function initWebsiteTool() {
+                const bmNameInput = document.getElementById('bm-name-input');
+                const bmUrlInput = document.getElementById('bm-url-input');
+                const bmAddBtn = document.getElementById('bm-add-btn');
+                const bmSearchInput = document.getElementById('bm-search-input');
+                const bmList = document.getElementById('bm-list');
+
+                const BM_STORAGE_KEY = 'todoweb3_bookmarks';
+                const defaultBookmarks = [
+                    { name: '노트북 LM - 등록 사이트', url: 'https://allnotebooklm.com/' },
+                    { name: 'NB_LM - 철학이란 무엇인가?', url: 'https://notebook.google.com/notebook/ddccb57' },
+                    { name: 'NB_LM - 셰익스피어', url: 'https://notebook.google.com/notebook/19bde485-' },
+                    { name: '깃허브', url: 'https://github.com/' }
+                ];
+
+                let bookmarks = [];
+                try {
+                    const saved = localStorage.getItem(BM_STORAGE_KEY);
+                    if (saved !== null) {
+                        const normalized = normalizeBookmarkList(JSON.parse(saved));
+                        if (!normalized) throw new Error('저장된 북마크 형식이 올바르지 않습니다.');
+                        bookmarks = normalized;
+                    } else {
+                        bookmarks = defaultBookmarks;
+                        localStorage.setItem(BM_STORAGE_KEY, JSON.stringify(bookmarks));
+                    }
+                } catch(e) {
+                    bookmarks = defaultBookmarks;
+                }
+
+                function saveBookmarks() {
+                    try {
+                        localStorage.setItem(BM_STORAGE_KEY, JSON.stringify(bookmarks));
+                    } catch(e) {}
+                }
+
+                function formatUrl(url) {
+                    url = url.trim();
+                    if (!/^https?:\/\//i.test(url)) {
+                        url = 'https://' + url;
+                    }
+                    return url;
+                }
+
+                function normalizeBookmarkList(items) {
+                    if (!Array.isArray(items)) return null;
+                    const normalized = [];
+                    for (const item of items) {
+                        if (!item || typeof item.name !== 'string' || typeof item.url !== 'string') return null;
+                        const name = item.name.trim();
+                        if (!name || name.length > 200 || item.url.length > 2048) return null;
+                        try {
+                            const url = new URL(formatUrl(item.url));
+                            if (!['http:', 'https:'].includes(url.protocol)) return null;
+                            normalized.push({ name, url: url.href });
+                        } catch (e) { return null; }
+                    }
+                    return normalized;
+                }
+
+                let draggedIndex = null;
+
+                function renderBookmarks() {
+                    bmList.innerHTML = '';
+                    const query = bmSearchInput.value.toLowerCase().trim();
+
+                    bookmarks.forEach((bm, index) => {
+                        const matches = !query || bm.name.toLowerCase().includes(query) || bm.url.toLowerCase().includes(query);
+                        if (!matches) return;
+
+                        const li = document.createElement('li');
+                        li.className = 'bm-item';
+                        li.dataset.index = index;
+
+                        // 드래그 핸들
+                        const dragHandle = document.createElement('span');
+                        dragHandle.className = 'bm-drag-handle';
+                        dragHandle.textContent = '≡';
+                        dragHandle.title = '드래그로 순서 변경';
+                        dragHandle.draggable = true;
+
+                        dragHandle.addEventListener('dragstart', (e) => {
+                            if (bmSearchInput.value.trim()) {
+                                e.preventDefault();
+                                return;
+                            }
+                            draggedIndex = index;
+                            li.classList.add('dragging');
+                            e.dataTransfer.effectAllowed = 'move';
+                            e.dataTransfer.setData('text/plain', String(index));
+                        });
+
+                        dragHandle.addEventListener('dragend', () => {
+                            document.querySelectorAll('.bm-item').forEach(item => {
+                                item.classList.remove('dragging', 'drag-over-before', 'drag-over-after');
+                            });
+                            draggedIndex = null;
+                        });
+
+                        // 링크 정보 영역
+                        const infoDiv = document.createElement('div');
+                        infoDiv.className = 'bm-info';
+
+                        const link = document.createElement('a');
+                        link.className = 'bm-link';
+                        link.href = bm.url;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+
+                        const nameSpan = document.createElement('span');
+                        nameSpan.className = 'bm-name';
+                        nameSpan.textContent = bm.name;
+
+                        const urlSpan = document.createElement('span');
+                        urlSpan.className = 'bm-url';
+                        urlSpan.textContent = `- ${bm.url}`;
+
+                        link.appendChild(nameSpan);
+                        link.appendChild(urlSpan);
+                        infoDiv.appendChild(link);
+
+                        // 삭제 버튼
+                        const delBtn = document.createElement('button');
+                        delBtn.type = 'button';
+                        delBtn.className = 'bm-delete-btn';
+                        delBtn.textContent = '✖';
+                        delBtn.title = '삭제';
+                        delBtn.addEventListener('click', () => {
+                            if (confirm(`'${bm.name}' 사이트를 삭제하시겠습니까?`)) {
+                                bookmarks.splice(index, 1);
+                                saveBookmarks();
+                                renderBookmarks();
+                            }
+                        });
+
+                        // 드래그 앤 드롭 위치 감지 및 순서 변경
+                        li.addEventListener('dragover', (e) => {
+                            if (draggedIndex === null || draggedIndex === index) return;
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                            const rect = li.getBoundingClientRect();
+                            const isBefore = e.clientY < rect.top + rect.height / 2;
+                            li.classList.toggle('drag-over-before', isBefore);
+                            li.classList.toggle('drag-over-after', !isBefore);
+                        });
+
+                        li.addEventListener('dragleave', (e) => {
+                            if (!li.contains(e.relatedTarget)) {
+                                li.classList.remove('drag-over-before', 'drag-over-after');
+                            }
+                        });
+
+                        li.addEventListener('drop', (e) => {
+                            e.preventDefault();
+                            if (draggedIndex === null || draggedIndex === index) return;
+                            const rect = li.getBoundingClientRect();
+                            const isBefore = e.clientY < rect.top + rect.height / 2;
+
+                            const movedItem = bookmarks.splice(draggedIndex, 1)[0];
+                            let targetIdx = index;
+                            if (draggedIndex < index) {
+                                targetIdx = isBefore ? index - 1 : index;
+                            } else {
+                                targetIdx = isBefore ? index : index + 1;
+                            }
+                            targetIdx = Math.max(0, Math.min(bookmarks.length, targetIdx));
+
+                            bookmarks.splice(targetIdx, 0, movedItem);
+                            saveBookmarks();
+                            renderBookmarks();
+                        });
+
+                        li.appendChild(dragHandle);
+                        li.appendChild(infoDiv);
+                        li.appendChild(delBtn);
+                        bmList.appendChild(li);
+                    });
+                }
+
+                function addBookmark() {
+                    const name = bmNameInput.value.trim();
+                    let url = bmUrlInput.value.trim();
+                    if (!name || !url) {
+                        alert('웹사이트 이름과 URL 주소를 모두 입력해주세요.');
+                        return;
+                    }
+                    url = formatUrl(url);
+
+                    bookmarks.unshift({ name, url });
+                    saveBookmarks();
+                    bmNameInput.value = '';
+                    bmUrlInput.value = '';
+                    bmSearchInput.value = '';
+                    renderBookmarks();
+                    bmNameInput.focus();
+                }
+
+                bmAddBtn.addEventListener('click', addBookmark);
+                bmNameInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') bmUrlInput.focus();
+                });
+                bmUrlInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') addBookmark();
+                });
+
+                bmSearchInput.addEventListener('input', renderBookmarks);
+
+                // 초기 렌더링
+                renderBookmarks();
+                return {
+                    prepareBookmarks: normalizeBookmarkList,
+                    getBookmarks() {
+                        return bookmarks.map(bookmark => ({ ...bookmark }));
+                    },
+                    replaceBookmarks(items) {
+                        const normalized = normalizeBookmarkList(items);
+                        if (!normalized) return false;
+                        bookmarks = normalized;
+                        saveBookmarks();
+                        bmSearchInput.value = '';
+                        renderBookmarks();
+                        return true;
+                    }
+                };
+            }
+
+            // [추가] 2번 탭 텍스트 메모장 로직
+            function initMemoTool() {
+                const memoEditor = document.getElementById('memo-editor');
+                const colorBtns = document.querySelectorAll('.memo-color-btn');
+                const copyBtn = document.getElementById('memo-copy-btn');
+                const MEMO_STORAGE_KEY = 'todoweb3_memo';
+
+                // 이 버전 전용 메모만 불러옵니다.
+                try {
+                    const saved = localStorage.getItem(MEMO_STORAGE_KEY);
+                    if (saved !== null) {
+                        const safeMemo = sanitizeMemoHTML(saved);
+                        memoEditor.innerHTML = safeMemo;
+                        if (safeMemo !== saved) localStorage.setItem(MEMO_STORAGE_KEY, safeMemo);
+                    }
+                } catch(e) {}
+
+                function saveMemo() {
+                    try {
+                        localStorage.setItem(MEMO_STORAGE_KEY, sanitizeMemoHTML(memoEditor.innerHTML));
+                    } catch(e) {}
+                }
+
+                function insertSafeHTML(html, rangeOverride) {
+                    const safeContainer = document.createElement('div');
+                    safeContainer.innerHTML = sanitizeMemoHTML(html);
+                    const selection = window.getSelection();
+                    let range = rangeOverride || (selection && selection.rangeCount ? selection.getRangeAt(0) : null);
+
+                    if (!range || !memoEditor.contains(range.commonAncestorContainer)) {
+                        range = document.createRange();
+                        range.selectNodeContents(memoEditor);
+                        range.collapse(false);
+                    }
+
+                    range.deleteContents();
+                    const fragment = document.createDocumentFragment();
+                    while (safeContainer.firstChild) fragment.appendChild(safeContainer.firstChild);
+                    const lastInsertedNode = fragment.lastChild;
+
+                    if (lastInsertedNode) {
+                        range.insertNode(fragment);
+                        range.setStartAfter(lastInsertedNode);
+                        range.collapse(true);
+                        if (selection) {
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                        }
+                    }
+                    saveMemo();
+                }
+
+                memoEditor.addEventListener('input', saveMemo);
+                memoEditor.addEventListener('paste', (event) => {
+                    const pastedHTML = event.clipboardData?.getData('text/html');
+                    if (!pastedHTML) return;
+                    event.preventDefault();
+                    insertSafeHTML(pastedHTML);
+                });
+                memoEditor.addEventListener('drop', (event) => {
+                    const droppedHTML = event.dataTransfer?.getData('text/html');
+                    if (!droppedHTML) return;
+                    event.preventDefault();
+
+                    let dropRange = null;
+                    if (document.caretRangeFromPoint) {
+                        dropRange = document.caretRangeFromPoint(event.clientX, event.clientY);
+                    } else if (document.caretPositionFromPoint) {
+                        const position = document.caretPositionFromPoint(event.clientX, event.clientY);
+                        if (position) {
+                            dropRange = document.createRange();
+                            dropRange.setStart(position.offsetNode, position.offset);
+                            dropRange.collapse(true);
+                        }
+                    }
+                    insertSafeHTML(droppedHTML, dropRange);
+                });
+
+                // 색상 버튼 클릭 처리 (5가지 기본 색상)
+                colorBtns.forEach(btn => {
+                    // 마우스 누를 때 에디터의 커서/선택영역 포커스를 잃지 않도록 방지
+                    btn.addEventListener('mousedown', (e) => {
+                        e.preventDefault();
+                    });
+
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const color = btn.getAttribute('data-color');
+
+                        colorBtns.forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+
+                        memoEditor.focus();
+                        const sel = window.getSelection();
+
+                        if (sel && sel.rangeCount > 0 && !sel.isCollapsed && memoEditor.contains(sel.anchorNode)) {
+                            // 1. 드래그된 글자가 있으면 해당 글자들의 색상만 변경 (기존 글자 영향 없음)
+                            document.execCommand('foreColor', false, color);
+                        } else {
+                            // 2. 글자 선택 없이 커서만 있는 경우:
+                            // 기존 글자는 절대로 건드리지 않고, 앞으로 입력될 글자색을 위해 커서 위치에 색상 span 준비
+                            document.execCommand('foreColor', false, color);
+
+                            if (sel && sel.rangeCount > 0 && memoEditor.contains(sel.anchorNode)) {
+                                const range = sel.getRangeAt(0);
+                                const span = document.createElement('span');
+                                span.style.color = color;
+                                span.appendChild(document.createTextNode('\u200B')); // 폭 없는 공백
+                                range.insertNode(span);
+                                range.setStart(span.firstChild, 1);
+                                range.collapse(true);
+                                sel.removeAllRanges();
+                                sel.addRange(range);
+                            }
+                        }
+                        saveMemo();
+                    });
+                });
+
+                // 전체 복사 기능
+                copyBtn.addEventListener('click', () => {
+                    const text = memoEditor.innerText || '';
+                    if (!text.trim()) return;
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text);
+                    } else {
+                        const tempArea = document.createElement('textarea');
+                        tempArea.value = text;
+                        document.body.appendChild(tempArea);
+                        tempArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(tempArea);
+                    }
+                    const orig = copyBtn.innerHTML;
+                    copyBtn.innerHTML = '✔ 복사됨!';
+                    setTimeout(() => { copyBtn.innerHTML = orig; }, 1200);
+                });
+            }
+
+            initMemoTool();
+            websiteTool = initWebsiteTool();
+        }
+    </script>
+</body>
+</html>

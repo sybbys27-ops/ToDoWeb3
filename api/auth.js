@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { neon } from '@neondatabase/serverless';
-import { configured, verifiedPin, isAuthenticated, setSession, clearSession } from './_session.js';
+import { configured, verifiedPin, isAuthenticated, setSession, clearSession } from '../lib/session.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');

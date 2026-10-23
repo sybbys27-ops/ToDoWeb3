@@ -622,7 +622,7 @@
             vertical-align: middle;
         }
         .delete-btn:hover { transform: scale(1.2); }
-    </style>
+    .tab-btn[data-tab="5"]{background:#e2e8f0}.gemini-view{display:none;flex-direction:column;gap:8px}#gemini-question{width:100%;box-sizing:border-box;height:75px;padding:8px;resize:vertical}#gemini-answer{min-height:140px;padding:10px;background:white;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #ccc;font-size:13px}.gemini-toolbar{display:flex;align-items:center;gap:8px}#gemini-status{font-size:12px}</style>
 </head>
 <body>
 
@@ -642,7 +642,7 @@
                 <button class="tab-btn active" data-tab="1">1</button>
                 <button class="tab-btn" data-tab="2" title="텍스트 메모">2</button>
                 <button class="tab-btn" data-tab="3" title="컬러 도구">3</button>
-                <button class="tab-btn" data-tab="4" title="웹 사이트 등록">4</button>
+                <button class="tab-btn" data-tab="4" title="웹 사이트 등록">4</button><button class="tab-btn" data-tab="5" title="Gemini AI">5</button>
             </div>
         </div>
 
@@ -738,7 +738,7 @@
             </div>
         </div>
 
-        <!-- 웹 사이트 등록 영역 (4번 탭) -->
+        <div id="gemini-view" class="gemini-view"><textarea id="gemini-question" maxlength="2000" placeholder="Gemini에게 질문하세요..."></textarea><div class="gemini-toolbar"><button type="button" id="gemini-send">질문</button><span id="gemini-status" role="status"></span></div><div id="gemini-answer" aria-live="polite">여기에 답변이 표시됩니다.</div></div><!-- 웹 사이트 등록 영역 (4번 탭) -->
         <div id="website-tool-view" style="display: none;">
             <div class="bm-top-tip">≡ 드래그로 순서 변경</div>
 
@@ -799,6 +799,7 @@
             const memoView = document.getElementById('memo-view');
             const colorToolView = document.getElementById('color-tool-view');
             const websiteToolView = document.getElementById('website-tool-view');
+            const geminiView = document.getElementById('gemini-view');
 
             let fileHandle = null; 
             let isUserResized = false;
@@ -956,6 +957,7 @@
                     memoView.style.display = 'none';
                     colorToolView.style.display = 'none';
                     websiteToolView.style.display = 'none';
+                    geminiView.style.display = 'none';
 
                     if (currentTab === '1') {
                         appTitle.innerHTML = '&lt; 할 일 관리 &gt;';
@@ -970,6 +972,9 @@
                     } else if (currentTab === '4') {
                         appTitle.innerHTML = '&lt; 웹 사이트 등록 &gt;';
                         websiteToolView.style.display = 'flex';
+                    } else if (currentTab === '5') {
+                        appTitle.innerHTML = '&lt; Gemini AI &gt;';
+                        geminiView.style.display = 'flex';
                     }
                 });
             });
@@ -1626,6 +1631,22 @@
 
             initMemoTool();
             websiteTool = initWebsiteTool();
+            const geminiQuestion = document.getElementById('gemini-question');
+            const geminiSend = document.getElementById('gemini-send');
+            const geminiStatus = document.getElementById('gemini-status');
+            const geminiAnswer = document.getElementById('gemini-answer');
+            geminiSend.addEventListener('click', async () => {
+                const question = geminiQuestion.value.trim();
+                if (!question) {geminiStatus.textContent='질문을 입력해 주세요.'; return;}
+                geminiSend.disabled=true;geminiStatus.textContent='답변 생성 중...';
+                try {
+                    const response=await fetch('/api/gemini',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({question})});
+                    const result=await response.json();
+                    if(!response.ok) throw new Error(result.error || 'API 오류');
+                    geminiAnswer.textContent=result.answer;geminiStatus.textContent='완료 · '+(result.model || 'Gemini');
+                } catch(e) {geminiStatus.textContent='오류';geminiAnswer.textContent=e.message;}
+                finally {geminiSend.disabled=false;}
+            });
         }
 
         // PIN gate: protects the visible app and checks the HttpOnly session server-side.

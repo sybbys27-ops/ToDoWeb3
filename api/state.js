@@ -52,8 +52,8 @@ export default async function handler(req, res) {
     const result = await sql`
       UPDATE app_state SET
         data = ${JSON.stringify(data)}::jsonb,
-        updated_at = GREATEST(now(), updated_at + interval '1 microsecond')
-      WHERE id = 1 AND updated_at = ${previous}::timestamptz
+        updated_at = GREATEST(date_trunc('milliseconds', clock_timestamp()), date_trunc('milliseconds', updated_at) + interval '1 millisecond')
+      WHERE id = 1 AND date_trunc('milliseconds', updated_at) = ${previous}::timestamptz
       RETURNING updated_at
     `;
     if (!result.length) {

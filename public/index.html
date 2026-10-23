@@ -1643,7 +1643,7 @@
                     const response=await fetch('/api/gemini',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({question})});
                     const result=await response.json();
                     if(!response.ok) throw new Error(result.error || 'API 오류');
-                    geminiAnswer.textContent=result.answer;geminiStatus.textContent='완료';
+                    geminiAnswer.textContent=result.answer;geminiStatus.textContent='완료 · '+(result.model || 'Gemini');
                 } catch(e) {geminiStatus.textContent='오류';geminiAnswer.textContent=e.message;}
                 finally {geminiSend.disabled=false;}
             });

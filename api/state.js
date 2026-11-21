@@ -20,17 +20,18 @@ export default async function handler(req, res) {
       });
     }
 
-    // Only accept the three data tabs, matching the existing JSON backup layout.
+    // Accept the three data tabs plus optional saved Gemini persona presets.
     const body = req.body;
     const data = body?.data;
     const previous = body?.updated_at;
     if (!data || typeof data !== 'object' || Array.isArray(data) ||
         !data.tab1_todo || !Array.isArray(data.tab1_todo['1']) ||
         typeof data.tab2_memo !== 'string' || !Array.isArray(data.tab4_bookmarks) ||
+        (data.personas !== undefined && !Array.isArray(data.personas)) ||
         typeof previous !== 'string' || !/^\d{4}-\d\d-\d\dT/.test(previous)) {
       return res.status(400).json({ error: 'Invalid state or missing updated_at' });
     }
-    if (Object.keys(data).some(k => !['tab1_todo','tab2_memo','tab4_bookmarks'].includes(k)) ||
+    if (Object.keys(data).some(k => !['tab1_todo','tab2_memo','tab4_bookmarks','personas'].includes(k)) ||
         Object.keys(data.tab1_todo).some(k => k !== '1') ||
         data.tab1_todo['1'].length > 5000 || data.tab4_bookmarks.length > 2000 ||
         data.tab2_memo.length > 300000) {
@@ -45,13 +46,21 @@ export default async function handler(req, res) {
       try { return ['http:', 'https:'].includes(new URL(b.url).protocol); }
       catch { return false; }
     });
-    if (!todosValid || !bookmarksValid) {
-      return res.status(400).json({ error: 'Invalid todo or bookmark data' });
+    const personasValid = data.personas === undefined || (
+      data.personas.length === 10 &&
+      data.personas.every((p, index) =>
+        p && p.id === index + 1 &&
+        typeof p.name === 'string' && p.name.trim().length > 0 && p.name.length <= 40 &&
+        typeof p.text === 'string' && p.text.length <= 800
+      )
+    );
+    if (!todosValid || !bookmarksValid || !personasValid) {
+      return res.status(400).json({ error: 'Invalid todo, bookmark, or persona data' });
     }
     // A conditional update prevents a stale preview tab overwriting later changes.
     const result = await sql`
       UPDATE app_state SET
-        data = ${JSON.stringify(data)}::jsonb,
+        data = data || ${JSON.stringify(data)}::jsonb,
         updated_at = GREATEST(date_trunc('milliseconds', clock_timestamp()), date_trunc('milliseconds', updated_at) + interval '1 millisecond')
       WHERE id = 1 AND date_trunc('milliseconds', updated_at) = ${previous}::timestamptz
       RETURNING updated_at

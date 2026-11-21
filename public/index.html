@@ -633,7 +633,16 @@
             vertical-align: middle;
         }
         .delete-btn:hover { transform: scale(1.2); }
-    .tab-btn[data-tab="5"]{background:#e2e8f0}.gemini-view{display:none;flex-direction:column;gap:8px}#gemini-question{width:100%;box-sizing:border-box;height:75px;padding:8px;resize:vertical}#gemini-answer{min-height:140px;padding:10px;background:white;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #ccc;font-size:13px}.gemini-toolbar{display:flex;align-items:center;gap:8px}.gemini-toolbar:has(#gemini-pick-image){gap:4px;flex-wrap:nowrap;min-width:0}.gemini-toolbar:has(#gemini-pick-image)>button{font-size:11px;white-space:nowrap;padding:4px 3px;min-width:0;flex:1 1 0;line-height:1.2}#gemini-status{font-size:12px}</style>
+    .tab-btn[data-tab="5"]{background:#e2e8f0}.gemini-view{display:none;flex-direction:column;gap:8px}#gemini-question{width:100%;box-sizing:border-box;height:75px;padding:8px;resize:vertical}#gemini-answer{min-height:140px;padding:10px;background:white;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #ccc;font-size:13px}.gemini-toolbar{display:flex;align-items:center;gap:8px}.gemini-toolbar:has(#gemini-pick-image){gap:4px;flex-wrap:nowrap;min-width:0}.gemini-toolbar:has(#gemini-pick-image)>button{font-size:11px;white-space:nowrap;padding:4px 3px;min-width:0;flex:1 1 0;line-height:1.2}#gemini-status{font-size:12px}
+.persona-toolbar{display:flex;gap:4px;align-items:center}
+#persona-select{flex:1;min-width:0;height:29px;font-size:11px;padding:2px 4px;border:1px solid #cbd5e1;border-radius:4px;background:#fff}
+.persona-toolbar button,.persona-editor-actions button{height:29px;font-size:11px;white-space:nowrap}
+#persona-editor{display:none;border:1px solid #cbd5e1;border-radius:5px;background:#f8fafc;padding:7px;max-height:260px;overflow:auto}
+.persona-slot{display:grid;grid-template-columns:28px 105px 1fr;gap:4px;align-items:center;margin-bottom:4px}
+.persona-slot span{font-size:11px;text-align:center}
+.persona-slot input{min-width:0;height:27px;box-sizing:border-box;font-size:11px;padding:3px 5px;border:1px solid #cbd5e1;border-radius:3px}
+.persona-editor-actions{display:flex;justify-content:flex-end;gap:4px;margin-top:6px}
+</style>
 </head>
 <body>
 
@@ -749,7 +758,7 @@
             </div>
         </div>
 
-        <div id="gemini-view" class="gemini-view"><textarea id="gemini-question" maxlength="4000" placeholder="Gemini에게 질문하세요..."></textarea><div class="gemini-toolbar"><button type="button" id="gemini-send">질문</button><span id="gemini-status" role="status"></span></div><div class="gemini-toolbar"><input type="file" id="gemini-image-file" accept="image/png,image/jpeg,image/webp" style="display:none"><button type="button" id="gemini-pick-image">🖼 이미지 선택</button><button type="button" id="gemini-capture">Capture 사용</button><button type="button" id="gemini-upload-image" disabled>Storage 저장</button><button type="button" id="gemini-storage-list">Storage 목록</button></div><span id="gemini-image-status" role="status" style="font-size:11px;color:#475569"></span><div id="gemini-answer" aria-live="polite">여기에 답변이 표시됩니다.</div></div><!-- 웹 사이트 등록 영역 (4번 탭) -->
+        <div id="gemini-view" class="gemini-view"><div class="persona-toolbar"><select id="persona-select" aria-label="페르소나 선택"></select><button type="button" id="persona-insert">넣기</button><button type="button" id="persona-edit">수정</button></div><div id="persona-editor"><div id="persona-slots"></div><div class="persona-editor-actions"><button type="button" id="persona-db-save">DB 저장</button><button type="button" id="persona-close">닫기</button></div></div><textarea id="gemini-question" maxlength="4000" placeholder="Gemini에게 질문하세요..."></textarea><div class="gemini-toolbar"><button type="button" id="gemini-send">질문</button><span id="gemini-status" role="status"></span></div><div class="gemini-toolbar"><input type="file" id="gemini-image-file" accept="image/png,image/jpeg,image/webp" style="display:none"><button type="button" id="gemini-pick-image">🖼 이미지 선택</button><button type="button" id="gemini-capture">Capture 사용</button><button type="button" id="gemini-upload-image" disabled>Storage 저장</button><button type="button" id="gemini-storage-list">Storage 목록</button></div><span id="gemini-image-status" role="status" style="font-size:11px;color:#475569"></span><div id="gemini-answer" aria-live="polite">여기에 답변이 표시됩니다.</div></div><!-- 웹 사이트 등록 영역 (4번 탭) -->
         <div id="website-tool-view" style="display: none;">
             <div class="bm-top-tip">≡ 드래그로 순서 변경</div>
 
@@ -827,6 +836,25 @@
             // 이 버전 전용 저장소입니다. 다른 학습 버전과 데이터를 공유하지 않습니다.
             const STORAGE_KEY = 'todoweb3_todos';
             let websiteTool = null;
+            const PERSONA_COUNT = 10;
+            const defaultPersonas = Array.from({length: PERSONA_COUNT}, (_, i) => ({
+                id: i + 1,
+                name: '페르소나 ' + (i + 1),
+                text: ''
+            }));
+            let personas = defaultPersonas.map(p => ({...p}));
+
+            function normalizePersonas(value) {
+                const source = Array.isArray(value) ? value : [];
+                return defaultPersonas.map((fallback, index) => {
+                    const item = source[index];
+                    const name = item && typeof item.name === 'string'
+                        ? item.name.trim().slice(0, 40) : fallback.name;
+                    const text = item && typeof item.text === 'string'
+                        ? item.text.trim().slice(0, 800) : '';
+                    return {id: index + 1, name: name || fallback.name, text};
+                });
+            }
 
             function resizeWindowToContent() {
                 if (isUserResized) return; 
@@ -1060,6 +1088,9 @@
                 document.getElementById('memo-editor').innerHTML = safeMemo;
                 localStorage.setItem('todoweb3_memo', safeMemo);
                 websiteTool.replaceBookmarks(safeBookmarks);
+                personas = normalizePersonas(state.personas);
+                renderPersonaSelect();
+                renderPersonaEditor();
                 renderCurrentTab();
                 dbRevision = payload.updated_at;
                 dbLoaded = true;
@@ -1080,7 +1111,8 @@
                     const data = {
                         tab1_todo: appData,
                         tab2_memo: sanitizeMemoHTML(document.getElementById('memo-editor').innerHTML),
-                        tab4_bookmarks: websiteTool.getBookmarks()
+                        tab4_bookmarks: websiteTool.getBookmarks(),
+                        personas: normalizePersonas(personas)
                     };
                     const response = await fetch('/api/state', {
                         method: 'POST',
@@ -1836,6 +1868,99 @@
                 }catch(e){panel.style.display='block';panel.textContent='❌ '+e.message;}
             });
             const geminiQuestion = document.getElementById('gemini-question');
+            const personaSelect = document.getElementById('persona-select');
+            const personaInsert = document.getElementById('persona-insert');
+            const personaEdit = document.getElementById('persona-edit');
+            const personaEditor = document.getElementById('persona-editor');
+            const personaSlots = document.getElementById('persona-slots');
+            const personaDbSave = document.getElementById('persona-db-save');
+            const personaClose = document.getElementById('persona-close');
+
+            function personaOptionLabel(persona) {
+                const preview = persona.text.replace(/\s+/g, ' ').trim();
+                return persona.id + '. ' + persona.name + (preview ? ' - ' + preview.slice(0, 28) + (preview.length > 28 ? '…' : '') : '');
+            }
+            function renderPersonaSelect() {
+                const selected = Number(personaSelect.value) || 1;
+                personaSelect.innerHTML = '';
+                personas.forEach(persona => {
+                    const option = document.createElement('option');
+                    option.value = String(persona.id);
+                    option.textContent = personaOptionLabel(persona);
+                    personaSelect.appendChild(option);
+                });
+                personaSelect.value = String(Math.min(Math.max(selected, 1), PERSONA_COUNT));
+            }
+            function renderPersonaEditor() {
+                personaSlots.innerHTML = '';
+                personas.forEach((persona, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'persona-slot';
+                    const number = document.createElement('span');
+                    number.textContent = String(index + 1);
+                    const name = document.createElement('input');
+                    name.type = 'text';
+                    name.maxLength = 40;
+                    name.value = persona.name;
+                    name.placeholder = '이름';
+                    name.setAttribute('aria-label', (index + 1) + '번 페르소나 이름');
+                    const textInput = document.createElement('input');
+                    textInput.type = 'text';
+                    textInput.maxLength = 800;
+                    textInput.value = persona.text;
+                    textInput.placeholder = '페르소나 내용';
+                    textInput.setAttribute('aria-label', (index + 1) + '번 페르소나 내용');
+                    const sync = () => {
+                        personas[index] = {
+                            id: index + 1,
+                            name: name.value.trim().slice(0, 40) || '페르소나 ' + (index + 1),
+                            text: textInput.value.trim().slice(0, 800)
+                        };
+                        renderPersonaSelect();
+                    };
+                    name.addEventListener('change', sync);
+                    textInput.addEventListener('change', sync);
+                    row.append(number, name, textInput);
+                    personaSlots.appendChild(row);
+                });
+            }
+            renderPersonaSelect();
+            renderPersonaEditor();
+
+            personaInsert.addEventListener('click', () => {
+                const persona = personas[(Number(personaSelect.value) || 1) - 1];
+                if (!persona || !persona.text.trim()) {
+                    geminiStatus.textContent = '선택한 페르소나 내용이 비어 있습니다.';
+                    return;
+                }
+                const insertText = '(' + persona.text.trim() + ') ';
+                const start = geminiQuestion.selectionStart ?? geminiQuestion.value.length;
+                const end = geminiQuestion.selectionEnd ?? start;
+                const next = geminiQuestion.value.slice(0, start) + insertText + geminiQuestion.value.slice(end);
+                if (next.length > geminiQuestion.maxLength) {
+                    geminiStatus.textContent = '질문 4000자 제한을 초과합니다.';
+                    return;
+                }
+                geminiQuestion.value = next;
+                const cursor = start + insertText.length;
+                geminiQuestion.focus();
+                geminiQuestion.setSelectionRange(cursor, cursor);
+                geminiStatus.textContent = persona.name + ' 삽입';
+            });
+            personaEdit.addEventListener('click', () => {
+                renderPersonaEditor();
+                personaEditor.style.display = personaEditor.style.display === 'block' ? 'none' : 'block';
+            });
+            personaClose.addEventListener('click', () => {
+                renderPersonaSelect();
+                personaEditor.style.display = 'none';
+            });
+            personaDbSave.addEventListener('click', () => {
+                personaSlots.querySelectorAll('input').forEach(el => el.dispatchEvent(new Event('change')));
+                renderPersonaSelect();
+                exportBtn.click();
+            });
+
             const geminiSend = document.getElementById('gemini-send');
             const geminiStatus = document.getElementById('gemini-status');
             const geminiAnswer = document.getElementById('gemini-answer');
